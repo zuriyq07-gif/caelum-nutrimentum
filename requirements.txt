@@ -1,0 +1,4 @@
+pandas==3.0.6
+scipy==1.18.1
+streamlit==1.65.0
+pytest==9.1.1

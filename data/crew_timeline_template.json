@@ -1,0 +1,1491 @@
+{
+ "_about": "Crew-day template derived from a real ISS daily plan (Russian segment Form 24, Radiogram 6767u, for 10/03/2014). Times are as printed (ISS runs on GMT/UTC).",
+ "source": {
+  "title": "Form 24 for 10/03/2014 (Radiogram No. 6767u)",
+  "url": "https://www.nasa.gov/wp-content/uploads/2014/09/100314_tl.pdf",
+  "time_zone_note": "ISS operates on GMT; times as printed"
+ },
+ "source_notes_verbatim": [
+  "See OSTPV for references to US activities.",
+  "Pre-sleep ops: daily food prep, dinner, pre-sleep",
+  "Russian crew uses US exercise equipment strictly per F24 or OSTPV"
+ ],
+ "caveats": [
+  "One specific day; FE-3/FE-5/FE-6 had a weekend-style off-duty block and only their RS-relevant items are shown (US activities are in OSTPV, not this form) - so work minutes for USOS crew are undercounted.",
+  "Dinner is not a separate block: per source note 2 it is inside the 19:30-21:30 'Pre-sleep' block.",
+  "Category labels (meal, exercise, work, etc.) are DERIVED by keyword classification of the activity text.",
+  "Activity text for multi-line cells was re-joined from PDF text extraction and checked by hand."
+ ],
+ "derived_template": {
+  "_status": "DERIVED from the events below (CDR/FE-1/FE-2 pattern, the crew with full schedules on this form)",
+  "blocks": [
+   {
+    "block": "sleep",
+    "start": "21:30",
+    "end": "06:00",
+    "duration_min": 510
+   },
+   {
+    "block": "morning_inspection",
+    "start": "06:00",
+    "end": "06:10",
+    "duration_min": 10
+   },
+   {
+    "block": "post_sleep_hygiene",
+    "start": "06:10",
+    "end": "06:40",
+    "duration_min": 30
+   },
+   {
+    "block": "breakfast",
+    "start": "06:40",
+    "end": "07:30",
+    "duration_min": 50,
+    "meal": "breakfast"
+   },
+   {
+    "block": "daily_planning_conference",
+    "start": "07:30",
+    "end": "07:55",
+    "duration_min": 25
+   },
+   {
+    "block": "tagups_and_work_prep",
+    "start": "07:55",
+    "end": "08:35",
+    "duration_min": 40
+   },
+   {
+    "block": "work_morning",
+    "start": "08:35",
+    "end": "13:00",
+    "duration_min": 265,
+    "contains": "one 60-90 min exercise session (staggered per crewmember)"
+   },
+   {
+    "block": "lunch",
+    "start": "13:00",
+    "end": "14:00",
+    "duration_min": 60,
+    "meal": "lunch"
+   },
+   {
+    "block": "work_afternoon",
+    "start": "14:00",
+    "end": "18:45",
+    "duration_min": 285,
+    "contains": "second 60-90 min exercise session for most crew"
+   },
+   {
+    "block": "evening_planning_and_tagup",
+    "start": "18:45",
+    "end": "19:25",
+    "duration_min": 40
+   },
+   {
+    "block": "evening_work_prep",
+    "start": "19:25",
+    "end": "19:30",
+    "duration_min": 5
+   },
+   {
+    "block": "pre_sleep_incl_food_prep_and_dinner",
+    "start": "19:30",
+    "end": "21:30",
+    "duration_min": 120,
+    "meal": "dinner (inside block per source note 2)"
+   }
+  ],
+  "meal_windows": {
+   "breakfast": [
+    "06:40",
+    "07:30"
+   ],
+   "lunch": [
+    "13:00",
+    "14:00"
+   ],
+   "dinner": [
+    "19:30",
+    "21:30"
+   ]
+  },
+  "exercise_minutes_per_crew_this_day": {
+   "CDR": 145,
+   "FE-1": 150,
+   "FE-2": 145,
+   "FE-3": 150,
+   "FE-5": 145,
+   "FE-6": 150
+  },
+  "exercise_sessions_per_crew_this_day": {
+   "CDR": 2,
+   "FE-1": 2,
+   "FE-2": 2,
+   "FE-3": 2,
+   "FE-5": 2,
+   "FE-6": 2
+  },
+  "sleep_min": 510,
+  "for_optimizer": {
+   "meals_per_day": 3,
+   "exercise_devices_seen": [
+    "ARED",
+    "CEVIS",
+    "БД-2 (BD-2 treadmill)",
+    "VELO"
+   ],
+   "note": "Use meal windows to schedule daily menu; exercise minutes can feed an activity-factor or extra-energy adjustment (not specified by NASA for ISS exercise; NASA EER uses AF up to 1.25 - see energy_rules.json)."
+  }
+ },
+ "per_crew_minutes_by_category": {
+  "CDR": {
+   "work": 365,
+   "post_sleep_hygiene": 30,
+   "meal": 110,
+   "planning_conference": 80,
+   "work_prep": 40,
+   "exercise": 145,
+   "pre_sleep_incl_dinner": 120,
+   "sleep": 510
+  },
+  "FE-1": {
+   "work": 335,
+   "post_sleep_hygiene": 30,
+   "meal": 110,
+   "planning_conference": 80,
+   "work_prep": 40,
+   "adaptation_orientation": 50,
+   "exercise": 150,
+   "pre_sleep_incl_dinner": 120,
+   "sleep": 510
+  },
+  "FE-2": {
+   "work": 290,
+   "post_sleep_hygiene": 30,
+   "meal": 110,
+   "planning_conference": 80,
+   "work_prep": 35,
+   "exercise": 145,
+   "adaptation_orientation": 60,
+   "pre_sleep_incl_dinner": 120,
+   "sleep": 510
+  },
+  "FE-3": {
+   "reminder": 10,
+   "work": 105,
+   "post_sleep_hygiene": 25,
+   "meal": 90,
+   "exercise": 150,
+   "off_duty": 225,
+   "planning_conference": 55,
+   "adaptation_orientation": 60,
+   "work_prep": 5,
+   "pre_sleep_incl_dinner": 115,
+   "sleep": 510
+  },
+  "FE-5": {
+   "reminder": 5,
+   "work": 150,
+   "post_sleep_hygiene": 30,
+   "meal": 105,
+   "off_duty": 225,
+   "exercise": 145,
+   "planning_conference": 55,
+   "work_prep": 20,
+   "pre_sleep_incl_dinner": 120,
+   "sleep": 510
+  },
+  "FE-6": {
+   "reminder": 15,
+   "work": 160,
+   "post_sleep_hygiene": 25,
+   "meal": 105,
+   "exercise": 150,
+   "off_duty": 225,
+   "planning_conference": 55,
+   "work_prep": 5,
+   "pre_sleep_incl_dinner": 115,
+   "sleep": 510
+  }
+ },
+ "per_crew_meals": {
+  "CDR": [
+   [
+    "06:40",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "13:00",
+    "14:00",
+    "LUNCH"
+   ]
+  ],
+  "FE-1": [
+   [
+    "06:40",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "13:00",
+    "14:00",
+    "LUNCH"
+   ]
+  ],
+  "FE-2": [
+   [
+    "06:40",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "13:00",
+    "14:00",
+    "LUNCH"
+   ]
+  ],
+  "FE-3": [
+   [
+    "07:00",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "12:55",
+    "13:55",
+    "LUNCH"
+   ]
+  ],
+  "FE-5": [
+   [
+    "06:45",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "13:20",
+    "14:20",
+    "LUNCH"
+   ]
+  ],
+  "FE-6": [
+   [
+    "06:45",
+    "07:30",
+    "BREAKFAST"
+   ],
+   [
+    "13:05",
+    "14:05",
+    "LUNCH"
+   ]
+  ]
+ },
+ "per_crew_exercise": {
+  "CDR": [
+   [
+    "11:55",
+    "12:55",
+    "БД-2 Exercise"
+   ],
+   [
+    "15:25",
+    "16:50",
+    "ARED Exercise"
+   ]
+  ],
+  "FE-1": [
+   [
+    "12:00",
+    "13:00",
+    "VELO Exercise"
+   ],
+   [
+    "16:30",
+    "18:00",
+    "БД-2 Exercise"
+   ]
+  ],
+  "FE-2": [
+   [
+    "09:55",
+    "11:20",
+    "ARED Exercise"
+   ],
+   [
+    "17:45",
+    "18:45",
+    "БД-2 Exercise"
+   ]
+  ],
+  "FE-3": [
+   [
+    "08:25",
+    "09:25",
+    "CEVIS Exercise"
+   ],
+   [
+    "17:10",
+    "18:40",
+    "ARED Exercise"
+   ]
+  ],
+  "FE-5": [
+   [
+    "11:25",
+    "12:40",
+    "ARED Exercise"
+   ],
+   [
+    "16:10",
+    "17:20",
+    "CEVIS Exercise"
+   ]
+  ],
+  "FE-6": [
+   [
+    "08:25",
+    "09:55",
+    "ARED Exercise"
+   ],
+   [
+    "17:20",
+    "18:20",
+    "CEVIS Exercise"
+   ]
+  ]
+ },
+ "events": [
+  {
+   "start": "06:00",
+   "end": "06:10",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Morning Inspection. Laptop RS1(2) Reboot",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:00",
+   "end": "06:10",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Morning Inspection. Laptop RSS2 Reboot / r/g 1009, step 1",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:00",
+   "end": "06:10",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "Morning Inspection. SM ПСС (Caution & Warning Panel) Test",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:00",
+   "end": "06:05",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Reading REMINDER",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "06:00",
+   "end": "06:05",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "ARED Exercise Photography Reminder",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "06:00",
+   "end": "06:05",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Reading REMINDER",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "06:05",
+   "end": "06:20",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "HRF - Sample Collection and Prep for Stowage",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "06:05",
+   "end": "06:15",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "Morning Inspection",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:05",
+   "end": "06:10",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Reading REMINDER",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "06:10",
+   "end": "06:40",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2"
+   ],
+   "activity": "Post-sleep",
+   "category": "post_sleep_hygiene",
+   "duration_min": 30
+  },
+  {
+   "start": "06:10",
+   "end": "06:20",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Morning Inspection",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:15",
+   "end": "06:45",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "Post-sleep",
+   "category": "post_sleep_hygiene",
+   "duration_min": 30
+  },
+  {
+   "start": "06:20",
+   "end": "06:25",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "HRF - MELFI Sample Retrieval/Insertion",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "06:20",
+   "end": "06:45",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Post-sleep",
+   "category": "post_sleep_hygiene",
+   "duration_min": 25
+  },
+  {
+   "start": "06:25",
+   "end": "06:35",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Morning Inspection",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "06:35",
+   "end": "07:00",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Post-sleep",
+   "category": "post_sleep_hygiene",
+   "duration_min": 25
+  },
+  {
+   "start": "06:40",
+   "end": "07:30",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2"
+   ],
+   "activity": "BREAKFAST",
+   "category": "meal",
+   "duration_min": 50
+  },
+  {
+   "start": "06:45",
+   "end": "07:30",
+   "crew": [
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "BREAKFAST",
+   "category": "meal",
+   "duration_min": 45
+  },
+  {
+   "start": "07:00",
+   "end": "07:30",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "BREAKFAST",
+   "category": "meal",
+   "duration_min": 30
+  },
+  {
+   "start": "07:30",
+   "end": "07:55",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2"
+   ],
+   "activity": "Daily Planning Conference (S-band)",
+   "category": "planning_conference",
+   "duration_min": 25
+  },
+  {
+   "start": "08:00",
+   "end": "11:20",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 200
+  },
+  {
+   "start": "08:10",
+   "end": "08:25",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2"
+   ],
+   "activity": "IMS Tagup (S-band)",
+   "category": "planning_conference",
+   "duration_min": 15
+  },
+  {
+   "start": "08:25",
+   "end": "08:35",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Work Prep",
+   "category": "work_prep",
+   "duration_min": 10
+  },
+  {
+   "start": "08:25",
+   "end": "08:30",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Work Prep",
+   "category": "work_prep",
+   "duration_min": 5
+  },
+  {
+   "start": "08:25",
+   "end": "08:55",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "Work Prep",
+   "category": "work_prep",
+   "duration_min": 30
+  },
+  {
+   "start": "08:25",
+   "end": "09:25",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "CEVIS Exercise",
+   "category": "exercise",
+   "duration_min": 60
+  },
+  {
+   "start": "08:25",
+   "end": "09:55",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "ARED Exercise",
+   "category": "exercise",
+   "duration_min": 90
+  },
+  {
+   "start": "08:30",
+   "end": "09:35",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "CARDIOVECTOR. Experiment Ops. Tagup with specialists",
+   "category": "work",
+   "duration_min": 65
+  },
+  {
+   "start": "08:35",
+   "end": "08:45",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Vozdukh Deactivation",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "08:45",
+   "end": "09:25",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "СОЖ Maintenance",
+   "category": "work",
+   "duration_min": 40
+  },
+  {
+   "start": "08:55",
+   "end": "09:10",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "CASKAD. Manual Mixing in Bioreactor",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "09:10",
+   "end": "09:20",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "CARDIOVECTOR. Photography of the Experiment Ops",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "09:25",
+   "end": "09:50",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "ISS Crew Medical Officer (CMO) Computer Based Training (CBT)",
+   "category": "work",
+   "duration_min": 25
+  },
+  {
+   "start": "09:25",
+   "end": "12:40",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 195
+  },
+  {
+   "start": "09:35",
+   "end": "10:35",
+   "crew": [
+    "CDR",
+    "FE-1"
+   ],
+   "activity": "Payload Interface Monitoring Unit (БКИПН). Removal of БКИПН (ТВМ-1Н). Tagup with specialists",
+   "category": "work",
+   "duration_min": 60
+  },
+  {
+   "start": "09:50",
+   "end": "09:55",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "Photo/TV Camcorder Setup Verification",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "09:55",
+   "end": "11:20",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "ARED Exercise",
+   "category": "exercise",
+   "duration_min": 85
+  },
+  {
+   "start": "09:55",
+   "end": "12:40",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 165
+  },
+  {
+   "start": "10:35",
+   "end": "11:00",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Install БКИПН (ТВМ-1Н) and connect cables to БКИПН (ТВМ-1Н). Tagup with specialists",
+   "category": "work",
+   "duration_min": 25
+  },
+  {
+   "start": "10:35",
+   "end": "11:25",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Install БКИПН (ТВМ-1Н) and connect cables to БКИПН (ТВМ-1Н). Tagup with specialists",
+   "category": "work",
+   "duration_min": 50
+  },
+  {
+   "start": "11:00",
+   "end": "11:10",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "On MCC Go Mating Telemetry Connectors to БИТС2-12. Tagup with specialists",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "11:10",
+   "end": "11:25",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Install БКИПН (ТВМ-1Н) and connect cables to БКИПН (ТВМ-1Н) / Tagup with specialists",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "11:20",
+   "end": "12:20",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "Crew time for ISS adaptation and orientation",
+   "category": "adaptation_orientation",
+   "duration_min": 60
+  },
+  {
+   "start": "11:20",
+   "end": "11:25",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "Photo/TV Camcorder Setup Verification",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "11:25",
+   "end": "11:45",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Payload Interface Monitoring Unit (БКИПН). Closeout Ops. Tagup with specialists",
+   "category": "work",
+   "duration_min": 20
+  },
+  {
+   "start": "11:25",
+   "end": "12:00",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Crew time for ISS adaptation and orientation",
+   "category": "adaptation_orientation",
+   "duration_min": 35
+  },
+  {
+   "start": "11:25",
+   "end": "12:40",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "ARED Exercise",
+   "category": "exercise",
+   "duration_min": 75
+  },
+  {
+   "start": "11:55",
+   "end": "12:55",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "БД-2 Exercise, Day 4",
+   "category": "exercise",
+   "duration_min": 60
+  },
+  {
+   "start": "12:00",
+   "end": "13:00",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "VELO Exercise, Day 3",
+   "category": "exercise",
+   "duration_min": 60
+  },
+  {
+   "start": "12:40",
+   "end": "12:55",
+   "crew": [
+    "FE-3",
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "Daily Planning Conference (S-band)",
+   "category": "planning_conference",
+   "duration_min": 15
+  },
+  {
+   "start": "12:55",
+   "end": "13:55",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "LUNCH",
+   "category": "meal",
+   "duration_min": 60
+  },
+  {
+   "start": "13:00",
+   "end": "14:00",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2"
+   ],
+   "activity": "LUNCH",
+   "category": "meal",
+   "duration_min": 60
+  },
+  {
+   "start": "13:00",
+   "end": "13:05",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "SHD - Space Headaches Weekly Questionnaire",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "13:05",
+   "end": "14:05",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "LUNCH",
+   "category": "meal",
+   "duration_min": 60
+  },
+  {
+   "start": "13:10",
+   "end": "13:20",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "SSRMS Checkout",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "13:20",
+   "end": "14:20",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "LUNCH",
+   "category": "meal",
+   "duration_min": 60
+  },
+  {
+   "start": "13:55",
+   "end": "14:05",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Health Maintenance System (HMS) - Food Frequency Questionnaire",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "14:00",
+   "end": "15:00",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "ТКГ 423 (DC1) Stowage Ops with IMS Support",
+   "category": "work",
+   "duration_min": 60
+  },
+  {
+   "start": "14:00",
+   "end": "16:30",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Removal of GoPro camera in ТК 714. Copying video data to Hard Drive. Clearing memory cards Charge the battery. Stowage in ТК 714. Tagup with specialists (S-band)",
+   "category": "work",
+   "duration_min": 150
+  },
+  {
+   "start": "14:00",
+   "end": "14:20",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "24-hour BP Monitoring (terminate)",
+   "category": "work",
+   "duration_min": 20
+  },
+  {
+   "start": "14:05",
+   "end": "14:35",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 30
+  },
+  {
+   "start": "14:05",
+   "end": "14:15",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "DRMET - Glacier Retrieval",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "14:15",
+   "end": "14:20",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "DRMET - Installation",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "14:20",
+   "end": "16:50",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "CALCIUM. Bioecologia cases photography and deployment. Photo Downlink. Tagup with specialists",
+   "category": "work",
+   "duration_min": 150
+  },
+  {
+   "start": "14:20",
+   "end": "14:30",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "Health Maintenance System (HMS) - Food Frequency Questionnaire",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "14:20",
+   "end": "14:30",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "PGS - Retrieval from MELFI",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "14:30",
+   "end": "14:40",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "BRIC19 - MELFI Sample Insertion",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "14:30",
+   "end": "15:00",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "PGS - Installation in CBEF",
+   "category": "work",
+   "duration_min": 30
+  },
+  {
+   "start": "14:35",
+   "end": "15:35",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Crew time for ISS adaptation and orientation",
+   "category": "adaptation_orientation",
+   "duration_min": 60
+  },
+  {
+   "start": "14:40",
+   "end": "15:05",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 25
+  },
+  {
+   "start": "15:00",
+   "end": "15:20",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "On MCC Go Vozdukh Atmosphere Purification System [СОА] Activation",
+   "category": "work",
+   "duration_min": 20
+  },
+  {
+   "start": "15:00",
+   "end": "15:30",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 30
+  },
+  {
+   "start": "15:05",
+   "end": "15:20",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "CGBA - Sample insertion/retrieval",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "15:20",
+   "end": "15:25",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Photo/TV Camcorder Setup Verification",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "15:25",
+   "end": "16:50",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "ARED Exercise",
+   "category": "exercise",
+   "duration_min": 85
+  },
+  {
+   "start": "15:30",
+   "end": "15:40",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "PGS - Laptop Application Activation",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "15:35",
+   "end": "16:35",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "EVA - Extravehicular Activity Mobility Unit (EMU) Enhanced Caution and Warning System (ECWS) On-Board Training",
+   "category": "work",
+   "duration_min": 60
+  },
+  {
+   "start": "15:35",
+   "end": "15:40",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "MOD29 - Retrieval from MELFI",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "15:40",
+   "end": "15:45",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "SHD - Space Headaches Weekly Questionnaire",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "15:40",
+   "end": "16:35",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "DRMET - Experiment Ops",
+   "category": "work",
+   "duration_min": 55
+  },
+  {
+   "start": "15:45",
+   "end": "15:55",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "DRMET - Photography",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "16:10",
+   "end": "17:20",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "CEVIS Exercise",
+   "category": "exercise",
+   "duration_min": 70
+  },
+  {
+   "start": "16:30",
+   "end": "18:00",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "БД-2 Exercise, Day 3",
+   "category": "exercise",
+   "duration_min": 90
+  },
+  {
+   "start": "16:35",
+   "end": "17:05",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "CREW OFF-DUTY",
+   "category": "off_duty",
+   "duration_min": 30
+  },
+  {
+   "start": "16:50",
+   "end": "17:50",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "ТКГ 423 (DC1) Stowage and IMS Ops",
+   "category": "work",
+   "duration_min": 60
+  },
+  {
+   "start": "16:50",
+   "end": "17:30",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "Cleaning ВД1 and ВД2 Air Ducts in MRM2",
+   "category": "work",
+   "duration_min": 40
+  },
+  {
+   "start": "17:10",
+   "end": "18:40",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "ARED Exercise",
+   "category": "exercise",
+   "duration_min": 90
+  },
+  {
+   "start": "17:20",
+   "end": "18:00",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "PLATE - Scanning",
+   "category": "work",
+   "duration_min": 40
+  },
+  {
+   "start": "17:20",
+   "end": "18:20",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "CEVIS Exercise",
+   "category": "exercise",
+   "duration_min": 60
+  },
+  {
+   "start": "17:30",
+   "end": "17:45",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "CASKAD. Manual Mixing in Bioreactor",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "17:45",
+   "end": "18:45",
+   "crew": [
+    "FE-2"
+   ],
+   "activity": "БД-2 Exercise, Day 2",
+   "category": "exercise",
+   "duration_min": 60
+  },
+  {
+   "start": "17:50",
+   "end": "18:10",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "IMS Delta File Prep",
+   "category": "work",
+   "duration_min": 20
+  },
+  {
+   "start": "18:00",
+   "end": "18:15",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Crew time for ISS adaptation and orientation",
+   "category": "adaptation_orientation",
+   "duration_min": 15
+  },
+  {
+   "start": "18:00",
+   "end": "18:30",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "ECLSS - Wastewater Storage Tank Assembly (WSTA) Fill",
+   "category": "work",
+   "duration_min": 30
+  },
+  {
+   "start": "18:10",
+   "end": "18:20",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Cleaning БВН (Heater Fan) Screen in ТПК 713",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "18:15",
+   "end": "18:45",
+   "crew": [
+    "FE-1"
+   ],
+   "activity": "Evening Work Prep",
+   "category": "work_prep",
+   "duration_min": 30
+  },
+  {
+   "start": "18:20",
+   "end": "18:45",
+   "crew": [
+    "CDR"
+   ],
+   "activity": "Evening Work Prep",
+   "category": "work_prep",
+   "duration_min": 25
+  },
+  {
+   "start": "18:20",
+   "end": "18:30",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "SPTEX - Survey Completion",
+   "category": "work",
+   "duration_min": 10
+  },
+  {
+   "start": "18:30",
+   "end": "18:45",
+   "crew": [
+    "FE-5"
+   ],
+   "activity": "Evening Work Prep",
+   "category": "work_prep",
+   "duration_min": 15
+  },
+  {
+   "start": "18:30",
+   "end": "18:45",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Packing Textile Material 2 for return",
+   "category": "work",
+   "duration_min": 15
+  },
+  {
+   "start": "18:40",
+   "end": "18:45",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "RED Exercise Video Equipment Stowage",
+   "category": "work",
+   "duration_min": 5
+  },
+  {
+   "start": "18:45",
+   "end": "19:05",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2",
+    "FE-3",
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "Daily Planning Conference (S-band)",
+   "category": "planning_conference",
+   "duration_min": 20
+  },
+  {
+   "start": "19:05",
+   "end": "19:25",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2",
+    "FE-3",
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "Flight Director / ISS Crew Tagup",
+   "category": "planning_conference",
+   "duration_min": 20
+  },
+  {
+   "start": "19:25",
+   "end": "19:30",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2",
+    "FE-3",
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "Evening Work Prep",
+   "category": "work_prep",
+   "duration_min": 5
+  },
+  {
+   "start": "19:30",
+   "end": "21:30",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2",
+    "FE-5"
+   ],
+   "activity": "Pre-sleep",
+   "category": "pre_sleep_incl_dinner",
+   "duration_min": 120
+  },
+  {
+   "start": "19:30",
+   "end": "21:25",
+   "crew": [
+    "FE-3",
+    "FE-6"
+   ],
+   "activity": "Pre-sleep",
+   "category": "pre_sleep_incl_dinner",
+   "duration_min": 115
+  },
+  {
+   "start": "21:25",
+   "end": "21:30",
+   "crew": [
+    "FE-3"
+   ],
+   "activity": "Reading REMINDER",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "21:25",
+   "end": "21:30",
+   "crew": [
+    "FE-6"
+   ],
+   "activity": "Reading REMINDER",
+   "category": "reminder",
+   "duration_min": 5
+  },
+  {
+   "start": "21:30",
+   "end": "06:00",
+   "crew": [
+    "CDR",
+    "FE-1",
+    "FE-2",
+    "FE-3",
+    "FE-5",
+    "FE-6"
+   ],
+   "activity": "SLEEP",
+   "category": "sleep",
+   "duration_min": 510
+  }
+ ]
+}

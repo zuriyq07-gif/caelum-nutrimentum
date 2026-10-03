@@ -1,0 +1,1052 @@
+{
+ "_about": "ISS food system structure for inventory/resupply modelling. Sourced fields quote the NTRS 2025 overview; fields ending in _DERIVED are this package's own heuristics.",
+ "sources": {
+  "ntrs_2025_overview": "https://ntrs.nasa.gov/api/citations/20250004456/downloads/ISS%20Food%20System%20Overview%20-%20ION%20052025.pdf (Xulei Wu, ISS/Artemis Food System Manager, 'Space Food System Overview', May 2025)",
+  "stemonstrations_appendix_a": "https://www.nasa.gov/wp-content/uploads/2023/03/stemonstrations-nutrition.pdf"
+ },
+ "container_composition": {
+  "standard_menu_containers": {
+   "approx_share_pct": 75,
+   "description": "'Pantry' shared by all USOS crewmembers; pre-packaged shelf-stable foods with 3-year shelf life; about 200 items"
+  },
+  "specialty_containers": {
+   "approx_share_pct": 25,
+   "includes": [
+    "Crew Specific Menu (including IP foods)",
+    "Coffee Tea Preference",
+    "Shelf Stable Food Kit",
+    "Fresh Food Kit",
+    "Cold Stowage Kit",
+    "Holiday BOB",
+    "Science Containers (Food Physiology, Vascular Aging)"
+   ]
+  },
+  "others_subject_to_SFSL_approval": {
+   "approx_share_pct": 1,
+   "includes": [
+    "Crew Care Package",
+    "Frozen Treats"
+   ]
+  },
+  "note": "Percentages as printed (~75 + ~25 + ~1; they do not sum exactly to 100)."
+ },
+ "standard_menu": {
+  "approx_item_count": 200,
+  "shelf_life_years": 3,
+  "shared_by": "all USOS crewmembers",
+  "categories": [
+   "Beverage and Straws",
+   "Breakfast",
+   "Desserts & Snacks",
+   "Fruit & Nuts",
+   "Meat & Fish",
+   "Rehydratable Meats",
+   "Side Dishes",
+   "Vegetables & Soups",
+   "Nutrition Bars",
+   "Tortillas",
+   "Condiments"
+  ],
+  "category_count_caveat": "Slide heading says '10 Categories' but lists 11 names.",
+  "inventory_tracking": "Inventory and resupply rate are tracked at container level by each category"
+ },
+ "food_types": {
+  "from_ntrs_2025": [
+   "Thermostabilized Food",
+   "Rehydratable",
+   "Intermediate Moisture",
+   "Natural Forms & Condiments",
+   "Beverages",
+   "Crew Preference & Holiday",
+   "Fresh Produce"
+  ],
+  "stemonstrations_codes": {
+   "T": "Thermostabilized",
+   "R": "Rehydratable",
+   "I": "Irradiated",
+   "IM": "Intermediate Moisture",
+   "NF": "Natural Form",
+   "B": "Beverage",
+   "FF": "Fresh Food"
+  }
+ },
+ "packaging_and_hardware_seen": {
+  "bulk_overwrap_bag_BOB_kg": "2~8",
+  "container_examples": [
+   "1/2 CTB",
+   "Science container 14.875in x 12in x 4.875in",
+   "BOB 12in x 12in zippers"
+  ],
+  "note": "Containers and corresponding packaging types are color coded."
+ },
+ "mission_phases": [
+  "Pre-flight Health Stabilization Program (HSP) Food Service",
+  "Ascent Food",
+  "Food on ISS",
+  "Descent Food",
+  "Post-flight Reconditioning Food Support"
+ ],
+ "phase_notes": "Ascent/Descent food is a subset of the ISS food system; shelf stable and ready to eat.",
+ "future_exploration_requirements": [
+  "5 year shelf-life (acceptability, nutrition)",
+  "Variety scarcity",
+  "No crew preference",
+  "No resupply"
+ ],
+ "iss_menu_counts_by_food_type_DERIVED": {
+  "NF": 19,
+  "B": 49,
+  "T": 63,
+  "R": 43,
+  "I": 8,
+  "IM": 4
+ },
+ "iss_menu_counts_by_category_DERIVED": {
+  "Fruit & Nuts": 20,
+  "Beverage and Straws": 49,
+  "Desserts & Snacks": 21,
+  "Vegetables & Soups": 23,
+  "Side Dishes": 15,
+  "Meat & Fish": 23,
+  "Rehydratable Meats": 11,
+  "Breakfast": 17,
+  "Condiments": 3,
+  "Nutrition Bars": 3,
+  "Tortillas": 1
+ },
+ "iss_menu_category_assignment_DERIVED": {
+  "method": "keyword rules on item name (build_fss.py); verify before relying on it",
+  "items": [
+   {
+    "item": "Almonds",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Apple Cider",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Apples with Spice",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Applesauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Apricot Cobbler",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Asparagus",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Baked Beans",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Banana Pudding",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Barbecued Beef Brisket",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Beef Fajitas",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Beef Pattie",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Beef Steak",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Beef Stew",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Beef Tips w/ Mushrooms",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Berry Medley",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Black Beans",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Blueberry Raspberry Yogurt",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Bran Chex",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Bread Pudding",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Breakfast Sausage Links",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Broccoli au Gratin",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Brown Rice",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Brownie",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Butter Cookies",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Butterscotch Pudding",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Candied Yams",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Candy Coated Almonds",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Candy Coated Chocolates",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Candy Coated Peanuts",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Caribbean Chicken",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Carrot Coins",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Cashews",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Cauliflower w/ Cheese",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Cheddar Cheese Spread",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Condiments"
+   },
+   {
+    "item": "Cheese Grits",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Cheese Tortellini",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Cherry Blueberry Cobbler",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Cherry Drink w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Chicken Consomme",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Chicken Fajitas",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Chicken in Pouches",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Chicken Noodle Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Chicken Teriyaki",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Chicken w/ Corn & Black Beans",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Chicken w/ Peanut Sauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Chicken-Pineapple Salad",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Chipotle Snack Bread",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Chocolate Breakfast Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Chocolate Pudding",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Chocolate Pudding Cake",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Citrus Fruit Salad",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Cocoa",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Corn",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Cornbread Dressing",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Cornflakes",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Crackers",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Cranapple Dessert",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Cranberry Peach Drink w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Crawfish Etouffee",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Cream of Mushroom Soup",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Creamed Spinach",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Curry Sauce w/ Vegetables",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Decaf. Coffee Black",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Decaf. Coffee w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Decaf. Coffee w/ C & A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Decaf. Coffee w/ C & S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Decaf. Coffee w/ Cream",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Decaf. Coffee w/ Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Dried Apricots",
+    "food_type": "IM",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Dried Peaches",
+    "food_type": "IM",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Dried Pears",
+    "food_type": "IM",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Drinking Water Container",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Fiesta Chicken",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Fruit Cocktail",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Granola",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Granola Bar",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Nutrition Bars"
+   },
+   {
+    "item": "Granola w/ Blueberries",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Granola w/ Raisins",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Grape Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Grape Drink w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Grape Jelly",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Condiments"
+   },
+   {
+    "item": "Grapefruit Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Green Beans w/ Mushrooms",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Green Tea",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Green Tea w/ Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Grilled Pork Chop",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Grits w/ Butter",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Homestyle Potatoes",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Hot and Sour Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Italian Vegetables",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Kona Coffee Black",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Kona Coffee w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Kona Coffee w/ C & A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Kona Coffee w/ C&S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Kona Coffee w/ Cream",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Kona Coffee w/ Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Lasagna with Meat",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Lemon Curd Cake",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Lemon Meringue Pudding",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Lemonade",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Lemonade w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Lemon-Lime Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Macadamia Nuts",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Macaroni & Cheese R",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Mango Peach Smoothie",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Maple Muffin Top",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Mashed Potatoes",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Meatloaf",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Mexican Scrambled Eggs",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Milk",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Minestrone Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Mixed Vegetables",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Noodles & Chicken",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Nut & Fruit Granola Bar",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Nutrition Bars"
+   },
+   {
+    "item": "Oatmeal w/ Brown Sugar",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Oatmeal w/ Raisins & Spice",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Orange Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Orange Drink w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Orange Juice",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Orange-Grapefruit Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Orange-Mango Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Orange-Pineapple Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Pasta w/ Pesto Sauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Pasta w/ Shrimp",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Peach-Apricot Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Peaches",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Peanut Butter",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Condiments"
+   },
+   {
+    "item": "Peanuts",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Pears",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Pineapple",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Pineapple Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Potato Medley",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Potato Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Potatoes au Gratin",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Red Beans & Rice",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Rhubarb Applesauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Rice & Chicken",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Rice Pilaf",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Rice Pudding",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Rice w/ Butter",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Side Dishes"
+   },
+   {
+    "item": "Salmon",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Sausage Pattie",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Scrambled Eggs",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Seafood Gumbo",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Seasoned Scrambled Eggs",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Shortbread Cookies",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Shrimp Cocktail",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Shrimp Fried Rice",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Smoked Turkey",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Southwestern Corn",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Split Pea Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Strawberries",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Strawberry Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Sweet & Sour Chicken",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Sweet & Sour Pork",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Tea",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea w/ Cream & Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea w/ Lemon & A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea w/ Lemon & Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea w/ Sugar",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea with A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea with Cream",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tea with Lemon",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Teriyaki Beef Steak",
+    "food_type": "I",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Teriyaki Chicken",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Teriyaki Vegetables",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Tofu w/ Hoisin Sauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Tofu w/ Hot Mustard Sauce",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Tomato Basil Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Tomatoes & Artichokes",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Tomatoes & Eggplant",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Tortillas",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Tortillas"
+   },
+   {
+    "item": "Trail Mix",
+    "food_type": "IM",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Tropical Fruit Salad",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Fruit & Nuts"
+   },
+   {
+    "item": "Tropical Punch",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tropical Punch w/ A/S",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Tuna",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Tuna Salad Spread",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Meat & Fish"
+   },
+   {
+    "item": "Turkey Tetrazzini",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Rehydratable Meats"
+   },
+   {
+    "item": "Vanilla Breakfast Drink",
+    "food_type": "B",
+    "standard_menu_category_DERIVED": "Beverage and Straws"
+   },
+   {
+    "item": "Vanilla Pudding",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Vegetable Quiche",
+    "food_type": "R",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Vegetarian Vegetable Soup",
+    "food_type": "T",
+    "standard_menu_category_DERIVED": "Vegetables & Soups"
+   },
+   {
+    "item": "Waffles",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Breakfast"
+   },
+   {
+    "item": "Wheat Flat Bread",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Desserts & Snacks"
+   },
+   {
+    "item": "Yogurt Covered Granola Bar",
+    "food_type": "NF",
+    "standard_menu_category_DERIVED": "Nutrition Bars"
+   }
+  ]
+ }
+}
