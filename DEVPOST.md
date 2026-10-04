@@ -1,6 +1,6 @@
 ## Inspiration
 
-A long mission launches with a fixed food mass. Vitamins decay, so a menu that meets day-0 targets can miss them later. Mission Pantry packs the least mass that still covers the crew, using real NASA data.
+A long mission launches with a fixed food mass. Vitamins decay, so a menu that meets day-0 targets can miss them later. Caelum Nutrimentum packs the least mass that still covers the crew, using real NASA data.
 
 ## What it does
 

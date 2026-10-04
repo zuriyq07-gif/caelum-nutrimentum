@@ -1,4 +1,4 @@
-# Mission Pantry
+# Caelum Nutrimentum
 
 Minimum-mass ISS pantry planner that replans the menu as vitamins decay, with a Grok voice assistant.
 
