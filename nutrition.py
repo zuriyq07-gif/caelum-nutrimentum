@@ -442,7 +442,8 @@ def plan_day(
         integrality=integrality,
         bounds=bounds,
         constraints=LinearConstraint(np.vstack(constraint_rows), lower_bounds, upper_bounds),
-        options={"time_limit": 20, "mip_rel_gap": 0.01, "disp": False},
+        # Male reference menus sit just past 20 s on a small machine, so the cap has some room.
+        options={"time_limit": 60, "mip_rel_gap": 0.01, "disp": False},
     )
     if not result.success or result.x is None:
         message = result.message if result.message else "The solver did not return a menu."
