@@ -550,9 +550,9 @@ def _packing_table(packing: Sequence[Mapping]) -> None:
         width="stretch",
         height=height,
         column_config={
-            "item": st.column_config.TextColumn("item", width="large"),
-            "servings": st.column_config.NumberColumn("servings", format="%.2f"),
-            "mass_kg": st.column_config.NumberColumn("mass_kg", format="%.3f"),
+            "item": st.column_config.TextColumn("item", width="medium"),
+            "servings": st.column_config.NumberColumn("servings", format="%.2f", width="small"),
+            "mass_kg": st.column_config.NumberColumn("mass_kg", format="%.3f", width="small"),
         },
     )
 
@@ -795,34 +795,35 @@ def _css() -> None:
           section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
             color: #c9d3de;
           }
-          .mass-kicker {
+          [data-testid="stMarkdownContainer"] p.mass-kicker {
             margin: 0.2rem 0 0;
             letter-spacing: 0.16em;
             text-transform: uppercase;
-            font-size: 0.78rem;
-            color: #e2a15a;
+            font-size: 0.78rem !important;
+            color: #e2a15a !important;
           }
-          .mass-hero {
-            margin: 0.15rem 0 0.35rem;
+          [data-testid="stMarkdownContainer"] p.mass-hero {
+            margin: 0.15rem 0 0.35rem !important;
             padding-bottom: 0.35rem;
             border-bottom: 1px solid rgba(226, 161, 90, 0.35);
-            font-size: clamp(2.4rem, 7vw, 4.6rem);
-            font-weight: 650;
+            font-size: clamp(2.6rem, 8vw, 4.8rem) !important;
+            font-weight: 650 !important;
             letter-spacing: -0.03em;
-            line-height: 1.02;
-            color: #e8b56a;
+            line-height: 1.02 !important;
+            color: #e8b56a !important;
             font-variant-numeric: tabular-nums;
           }
-          .mass-unit {
+          [data-testid="stMarkdownContainer"] p.mass-hero .mass-unit {
             margin-left: 0.35rem;
-            font-size: 0.38em;
+            font-size: 0.42em !important;
             letter-spacing: 0.04em;
-            color: #e2a15a;
+            color: #e2a15a !important;
+            font-weight: 600 !important;
           }
           [data-testid="stDataFrame"] { overflow-x: auto; max-width: 100%; }
           @media (max-width: 480px) {
             .block-container { padding-left: 0.7rem; padding-right: 0.7rem; }
-            .mass-hero { font-size: 2.3rem; }
+            [data-testid="stMarkdownContainer"] p.mass-hero { font-size: 2.6rem !important; }
           }
         </style>
         """,
