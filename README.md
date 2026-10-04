@@ -27,6 +27,8 @@ EVA hours per week are converted before the `mission_food` call, and that fracti
 
 The page shows total food mass, the packing list (heaviest first), a chart titled “Share of daily minimum, mission-weighted”, and a CSV download named `mission_packing_list.csv` with columns `item`, `servings`, and `mass_kg`.
 
+`decay.py` replans that menu every 30 days as vitamins decay. Content on mission day `t` is `C0 * exp(-k_per_year * t / 365.25)`, using the yearly rates in `data/shelf_life_decay.csv`. Under the nutrient chart, a Shelf life section plots each vitamin against its minimum: the locked day-0 menu, the replanned menu, and the target. Days the locked menu would miss a minimum are marked, and a table lists serving changes at later epochs. The safety margin stays on the packing list and is not applied again inside those daily solves.
+
 ## Tests
 
 ```bash

@@ -17,6 +17,7 @@ import pandas as pd
 import streamlit as st
 
 from data_loader import load_all
+from decay import describe_shortfalls, replan_mission
 from mission import mission_food
 from optimizer import FOOD_COLUMNS
 
@@ -65,6 +66,8 @@ DEFAULT_CREW = (
 )
 
 _NUTRIENT_ORDER = {name: index for index, name in enumerate(FOOD_COLUMNS)}
+REPLAN_EVERY_DAYS = 30
+SINGLE_MENU_NOTE = "One menu covers this mission. Replanning starts on day 30."
 
 
 def eva_schedule(weekly_hours: float) -> dict:
@@ -298,7 +301,7 @@ def main() -> None:
         )
         st.stop()
 
-    _render_plan(result, schedule, len(entered["crew"]))
+    _render_plan(result, schedule, entered)
 
 
 @st.cache_resource
@@ -324,6 +327,59 @@ def plan_food_load(
     """
 
     package = load_food_package()
+    members, tokens = _members_from_key(crew)
+    return mission_food(
+        days,
+        members,
+        safety_margin=safety_margin,
+        eva_day_fraction=eva_day_fraction,
+        eva_hours=eva_hours,
+        foods=package.foods,
+        allergies=tokens,
+    )
+
+
+@st.cache_data(show_spinner="Replanning the menu as vitamins decay…")
+def plan_shelf_life(
+    days: float,
+    crew: tuple[tuple[int, str, float, float, tuple[str, ...]], ...],
+    safety_margin: float,
+    eva_day_fraction: float,
+    eva_hours: float,
+    replan_every: int,
+) -> dict:
+    """Replan vitamin decay on the same crew and mission inputs as the manifest.
+
+    ``replan_every`` is part of the cache key. The safety margin is recorded
+    and is not applied inside the daily solves.
+    """
+
+    package = load_food_package()
+    members, tokens = _members_from_key(crew)
+    return replan_mission(
+        days,
+        members,
+        replan_every=replan_every,
+        safety_margin=safety_margin,
+        eva_day_fraction=eva_day_fraction,
+        eva_hours=eva_hours,
+        foods=package.foods,
+        decay_table=package.decay,
+        allergies=tokens,
+    )
+
+
+def shelf_change_note(epoch_count: int, change_count: int) -> str | None:
+    """Empty-state copy when one menu covers the flight or servings do not move."""
+
+    if epoch_count <= 1 or change_count == 0:
+        return SINGLE_MENU_NOTE
+    return None
+
+
+def _members_from_key(
+    crew: tuple[tuple[int, str, float, float, tuple[str, ...]], ...],
+) -> tuple[list[dict], list[str]]:
     members = [
         {
             "age": int(age),
@@ -341,15 +397,7 @@ def plan_food_load(
             if token not in seen:
                 seen.add(token)
                 tokens.append(token)
-    return mission_food(
-        days,
-        members,
-        safety_margin=safety_margin,
-        eva_day_fraction=eva_day_fraction,
-        eva_hours=eva_hours,
-        foods=package.foods,
-        allergies=tokens,
-    )
+    return members, tokens
 
 
 def _sidebar() -> dict:
@@ -469,9 +517,10 @@ def _crew_member(index: int) -> dict:
     }
 
 
-def _render_plan(result: Mapping, schedule: Mapping, crew_count: int) -> None:
+def _render_plan(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
+    crew_count = len(entered["crew"])
     if not result.get("feasible"):
-        _render_infeasible(result, schedule, crew_count)
+        _render_infeasible(result, schedule, entered)
         return
 
     total = result.get("total_mass_kg")
@@ -500,9 +549,11 @@ def _render_plan(result: Mapping, schedule: Mapping, crew_count: int) -> None:
         _download_packing(packing)
 
     _render_chart(result)
+    _render_shelf_life(entered, schedule)
 
 
-def _render_infeasible(result: Mapping, schedule: Mapping, crew_count: int) -> None:
+def _render_infeasible(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
+    crew_count = len(entered["crew"])
     st.error(str(result.get("message") or "This crew and menu cannot meet the nutrient targets."))
     unmet_rows = _unmet_by_day(result)
     if unmet_rows:
@@ -520,6 +571,7 @@ def _render_infeasible(result: Mapping, schedule: Mapping, crew_count: int) -> N
     _packing_table([])
     st.caption("No items. The download has the header row only.")
     _download_packing([])
+    _render_shelf_life(entered, schedule)
 
 
 def _mission_lines(result: Mapping, schedule: Mapping, crew_count: int) -> None:
@@ -566,6 +618,184 @@ def _download_packing(packing: Sequence[Mapping]) -> None:
         mime="text/csv",
         key="packing-csv",
     )
+
+
+def _render_shelf_life(entered: Mapping, schedule: Mapping) -> None:
+    st.subheader("Shelf life")
+    st.caption(
+        "Each vitamin on the daily menu, from launch through the last mission day. "
+        "Gray is the day-0 menu with no further planning. Amber is the menu solved again "
+        f"every {REPLAN_EVERY_DAYS} days from the vitamins left on that day. "
+        "The thin line is the target minimum. Points mark days the locked menu would fall short."
+    )
+    crew_key = tuple(
+        (
+            int(member["age"]),
+            str(member["sex"]),
+            float(member["weight_kg"]),
+            float(member["height_m"]),
+            tuple(member["allergies"]),
+        )
+        for member in entered["crew"]
+    )
+    try:
+        decay = plan_shelf_life(
+            float(entered["days"]),
+            crew_key,
+            float(entered["safety_margin"]),
+            float(schedule["eva_day_fraction"]),
+            float(schedule["eva_hours"]),
+            REPLAN_EVERY_DAYS,
+        )
+    except Exception as exc:
+        st.error(f"Shelf-life replanning stopped. {type(exc).__name__}: {exc}")
+        return
+
+    starts = [int(day) for day in decay.get("epoch_starts") or []]
+    start_text = ", ".join(str(day) for day in starts) if starts else "—"
+    margin = _format_percent(float(decay.get("safety_margin") or 0.0))
+    kind = "EVA-day" if decay.get("representative_kind") == "eva" else "typical-day"
+    st.caption(
+        f"Replan epochs: {start_text}. Lines are the {kind} menu. "
+        f"The {margin} safety margin is not applied here; the packing list applies it once."
+    )
+    if decay.get("eva_day_fraction", 0) and decay.get("representative_kind") != "eva":
+        st.caption("An EVA-day menu is solved at the same epochs. The chart follows the typical day, where vitamin targets are tightest.")
+
+    st.markdown(describe_shortfalls(decay.get("shortfalls") or []))
+    _shelf_charts(decay)
+    _shelf_changes(decay)
+
+
+def _shelf_charts(decay: Mapping) -> None:
+    daily = list(decay.get("daily") or [])
+    if not daily:
+        st.info("No vitamin on this menu had a minimum target to chart.")
+        return
+    frame = pd.DataFrame(daily)
+    same_path = bool((frame["no_replan_total"] - frame["replan_total"]).abs().max() < 1e-6)
+    if same_path:
+        st.caption("Servings have not changed, so the amber and gray lines are the same path. Both still fall as vitamins decay.")
+    order = list(dict.fromkeys(frame["vitamin"].tolist()))
+    marks = [int(day) for day in (decay.get("epoch_starts") or []) if int(day) > 0]
+    last = int(frame["day"].max()) if len(frame) else 0
+    for index, vitamin in enumerate(order):
+        part = frame.loc[frame["vitamin"].eq(vitamin)].sort_values("day")
+        if part.empty:
+            continue
+        label = str(part["label"].iloc[0])
+        unit = str(part["unit"].iloc[0])
+        st.markdown(f"**{label}** ({unit})")
+        chart = _decay_chart(part, unit, marks, last, show_legend=index == 0)
+        st.altair_chart(chart, width="stretch", theme=None)
+
+
+def _decay_chart(frame: pd.DataFrame, unit: str, epoch_days: Sequence[int], last_day: int, *, show_legend: bool) -> alt.Chart:
+    long = pd.DataFrame(
+        {
+            "day": list(frame["day"]) * 3,
+            "amount": (
+                list(frame["replan_total"]) + list(frame["no_replan_total"]) + list(frame["target_min"])
+            ),
+            "series": (["Replanned"] * len(frame)) + (["No replan"] * len(frame)) + (["Target"] * len(frame)),
+        }
+    )
+    domain = ["Replanned", "No replan", "Target"]
+    colors = ["#e2a15a", "#8b97a6", "#c9d3de"]
+    legend = alt.Legend(orient="bottom", title=None, labelColor="#c9d3de", symbolLimit=3) if show_legend else None
+    base = alt.Chart(long).encode(
+        x=alt.X(
+            "day:Q",
+            title="Mission day",
+            scale=alt.Scale(domain=[0, max(last_day, 1)], nice=False),
+        ),
+        y=alt.Y("amount:Q", title=unit, scale=alt.Scale(zero=False)),
+        color=alt.Color("series:N", title=None, scale=alt.Scale(domain=domain, range=colors), legend=legend),
+        tooltip=[
+            alt.Tooltip("series:N", title="Series"),
+            alt.Tooltip("day:Q", title="Day", format=".0f"),
+            alt.Tooltip("amount:Q", title=unit, format=".2f"),
+        ],
+    )
+    replanned = base.transform_filter(alt.datum.series == "Replanned").mark_line(strokeWidth=2.5)
+    locked = base.transform_filter(alt.datum.series == "No replan").mark_line(strokeWidth=2)
+    target = base.transform_filter(alt.datum.series == "Target").mark_line(strokeWidth=1, strokeDash=[4, 3])
+    layers = [locked, replanned, target]
+    short = frame.loc[frame["shortfall_without_replan"].astype(bool)]
+    if not short.empty:
+        layers.append(
+            alt.Chart(short)
+            .mark_circle(color="#e07a5f", size=48, opacity=0.95)
+            .encode(
+                x="day:Q",
+                y=alt.Y("no_replan_total:Q", scale=alt.Scale(zero=False)),
+                tooltip=[
+                    alt.Tooltip("day:Q", title="Shortfall day", format=".0f"),
+                    alt.Tooltip("no_replan_total:Q", title="No replan", format=".2f"),
+                    alt.Tooltip("target_min:Q", title="Target minimum", format=".2f"),
+                ],
+            )
+        )
+    if epoch_days:
+        layers.append(
+            alt.Chart(pd.DataFrame({"day": epoch_days}))
+            .mark_rule(color="#e2a15a", strokeDash=[2, 2], opacity=0.75, strokeWidth=1)
+            .encode(x="day:Q", tooltip=[alt.Tooltip("day:Q", title="Replan day", format=".0f")])
+        )
+    return (
+        alt.layer(*layers)
+        .properties(height=150)
+        .configure(background="transparent")
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            labelColor="#c9d3de",
+            titleColor="#c9d3de",
+            gridColor="#1c2836",
+            domainColor="#1c2836",
+            labelFont="IBM Plex Sans, Source Sans 3, sans-serif",
+            titleFont="IBM Plex Sans, Source Sans 3, sans-serif",
+        )
+        .configure_legend(
+            labelColor="#c9d3de",
+            titleColor="#c9d3de",
+            labelFont="IBM Plex Sans, Source Sans 3, sans-serif",
+        )
+    )
+
+
+def _shelf_changes(decay: Mapping) -> None:
+    st.subheader("Menu changes")
+    changes = list(decay.get("plan_changes") or [])
+    note = shelf_change_note(len(decay.get("epoch_starts") or []), len(changes))
+    if note:
+        st.info(note)
+        return
+    kinds = {str(row.get("kind") or "typical") for row in changes}
+    show = {
+        "epoch day": [int(row["day"]) for row in changes],
+        "food": [str(row["item"]) for row in changes],
+        "previous servings": [float(row["previous_servings"]) for row in changes],
+        "new servings": [float(row["new_servings"]) for row in changes],
+        "delta": [float(row["delta"]) for row in changes],
+    }
+    if len(kinds) > 1:
+        show = {
+            "epoch day": show["epoch day"],
+            "menu": ["EVA" if row.get("kind") == "eva" else "Typical" for row in changes],
+            **{key: value for key, value in show.items() if key != "epoch day"},
+        }
+    table = pd.DataFrame(show)
+    height = min(420, 38 + 36 * len(table))
+    column_config = {
+        "epoch day": st.column_config.NumberColumn("epoch day", format="%d", width="small"),
+        "food": st.column_config.TextColumn("food", width="medium"),
+        "previous servings": st.column_config.NumberColumn("previous servings", format="%.2f"),
+        "new servings": st.column_config.NumberColumn("new servings", format="%.2f"),
+        "delta": st.column_config.NumberColumn("delta", format="%+.2f"),
+    }
+    if "menu" in table.columns:
+        column_config["menu"] = st.column_config.TextColumn("menu", width="small")
+    st.dataframe(table, hide_index=True, width="stretch", height=height, column_config=column_config)
 
 
 def _render_chart(result: Mapping) -> None:
@@ -821,9 +1051,11 @@ def _css() -> None:
             font-weight: 600 !important;
           }
           [data-testid="stDataFrame"] { overflow-x: auto; max-width: 100%; }
+          [data-testid="stVegaLiteChart"] { max-width: 100%; overflow-x: auto; }
           @media (max-width: 480px) {
             .block-container { padding-left: 0.7rem; padding-right: 0.7rem; }
             [data-testid="stMarkdownContainer"] p.mass-hero { font-size: 2.6rem !important; }
+            [data-testid="stVegaLiteChart"] { min-width: 0; }
           }
         </style>
         """,

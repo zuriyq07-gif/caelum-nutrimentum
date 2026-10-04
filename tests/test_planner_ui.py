@@ -3,10 +3,12 @@
 import pytest
 
 from app import (
+    SINGLE_MENU_NOTE,
     VISUAL_PERCENT_CAP,
     eva_schedule,
     mission_average_coverage,
     packing_list_csv,
+    shelf_change_note,
     validate_mission_inputs,
 )
 
@@ -148,3 +150,10 @@ def test_mission_average_ignores_a_day_with_zero_length():
     assert rows[0]["delivered"] == pytest.approx(80)
     assert rows[0]["target_min"] == pytest.approx(66)
     assert rows[0]["label"] == "Protein"
+
+
+def test_shelf_change_note_covers_one_epoch_and_a_stable_menu():
+    assert shelf_change_note(1, 0) == SINGLE_MENU_NOTE
+    assert shelf_change_note(3, 0) == SINGLE_MENU_NOTE
+    assert shelf_change_note(3, 2) is None
+    assert SINGLE_MENU_NOTE == "One menu covers this mission. Replanning starts on day 30."
