@@ -1,4 +1,4 @@
-# ISS mission food load
+# ISS mission food manifest
 
 Streamlit planner that packs the ISS standard menu for a crew. The app calls `mission.mission_food`, which solves a minimum-mass typical day and an EVA day, blends them by the EVA-day fraction, and adds a safety margin on servings.
 
@@ -7,22 +7,25 @@ Nutrient targets and the menu linear program stay in `targets.py`, `optimizer.py
 ## Run
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-streamlit run app.py --server.port 8765
+~/.local/bin/streamlit run app.py --server.address 0.0.0.0 --server.port 8765 --server.headless true
 ```
+
+A virtualenv works too: install `requirements.txt`, then `streamlit run app.py --server.port 8765`.
 
 ## Sidebar
 
-- Mission length in days
-- Number of crew, and for each person age, sex, weight (kg), height (m), and allergies (comma-separated)
-- EVA hours per week for the mission (one number, not per person)
-- Safety margin, default 10% (`0.10`)
+- Mission length in days (at least 1). Default 30.
+- Number of crew (1–6). Default is one male, age 45, 82.9 kg, 180 cm, no allergies. Each person has age, sex, weight (kg), height (cm), and allergies (comma-separated).
+- EVA hours per week for the mission (one number, not per person). Default 6.5.
+- Safety margin in percent, default 10 (`0.10` on the call).
 
-EVA hours per week are converted before the `mission_food` call. Zero hours plans typical days only (`eva_day_fraction=0`, `eva_hours=0`). Up to 45.5 hours a week (seven standard 6.5-hour EVA days), `eva_day_fraction` is weekly hours / 45.5 and `eva_hours` stays 6.5. Above 45.5, every day is an EVA day and `eva_hours` is the weekly total divided by 7.
+EVA hours per week are converted before the `mission_food` call, and that fraction is always passed in. `data/launch_library/spacewalks.json` is not used.
 
-The page shows total food mass, the packing list (heaviest first), a chart of the mission-average day as a percent of each minimum target, and a CSV download named `mission_packing_list.csv`.
+- 0 h/week: `eva_day_fraction` 0 and `eva_hours` 0. No EVA days.
+- More than 0 and at most 6.5 h/week: one EVA day per week (`eva_day_fraction` 1/7) lasting the weekly hours.
+- Above 6.5 h/week: `n = weekly_hours / 6.5`. When `n` is at most 7, `eva_day_fraction` is `n/7` and each EVA day is 6.5 h. When `n` is above 7, every day is an EVA day (`eva_day_fraction` 1) and `eva_hours` is the weekly total divided by 7.
+
+The page shows total food mass, the packing list (heaviest first), a chart titled “Share of daily minimum, mission-weighted”, and a CSV download named `mission_packing_list.csv` with columns `item`, `servings`, and `mass_kg`.
 
 ## Tests
 

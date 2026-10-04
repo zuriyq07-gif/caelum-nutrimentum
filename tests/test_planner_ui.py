@@ -43,6 +43,17 @@ def test_eva_schedule_above_a_full_week_uses_every_day():
     assert "10.00" in schedule["note"]
 
 
+def test_eva_schedule_maps_a_short_day_and_several_full_days():
+    short = eva_schedule(3)
+    assert short["eva_day_fraction"] == pytest.approx(1 / 7)
+    assert short["eva_hours"] == pytest.approx(3)
+
+    two = eva_schedule(13)
+    assert two["eva_day_fraction"] == pytest.approx(2 / 7)
+    assert two["eva_hours"] == pytest.approx(6.5)
+    assert two["note"] is None
+
+
 def test_eva_schedule_rejects_negative_hours():
     with pytest.raises(ValueError, match="negative"):
         eva_schedule(-1)
@@ -81,7 +92,7 @@ def test_packing_list_csv_columns_and_total():
         ]
     )
     lines = csv_text.strip().split("\n")
-    assert lines[0] == "food,servings,mass_kg"
+    assert lines[0] == "item,servings,mass_kg"
     assert lines[1] == '"Tuna salad, kit",12.35,1.235'
     assert lines[2] == "Tortilla,4.00,0.200"
     assert lines[3] == "Total,,1.435"

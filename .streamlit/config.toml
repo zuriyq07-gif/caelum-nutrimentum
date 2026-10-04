@@ -5,8 +5,8 @@ gatherUsageStats = false
 base = "dark"
 primaryColor = "#e2a15a"
 backgroundColor = "#070b12"
-secondaryBackgroundColor = "#121a28"
-textColor = "#e7eef5"
+secondaryBackgroundColor = "#101820"
+textColor = "#c9d3de"
 font = "sans serif"
 
 [client]
