@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from decay import _below_minimum, describe_shortfalls
@@ -162,21 +164,131 @@ def resupply_delay_line(days: int) -> str:
     return f"Resupply delayed {int(days)} days"
 
 
-def resolve_api_key() -> str | None:
-    """Environment ``XAI_API_KEY``, otherwise Streamlit secret ``xai_api_key``."""
+_REPO_ROOT = Path(__file__).resolve().parent
+_ENV_ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 
-    env = os.environ.get("XAI_API_KEY", "").strip()
-    if env:
-        return env
+
+def load_repo_env(root: Path | None = None) -> None:
+    """Load ``XAI_API_KEY`` from the repo-root ``.env`` without overriding the process.
+
+    A value already in the process environment stays. Otherwise the key from
+    ``.env`` is copied into ``os.environ`` so the chat client can see it
+    without a manual export.
+    """
+
+    if _clean_secret(os.environ.get("XAI_API_KEY")):
+        return
+    path = (Path(root) if root is not None else _REPO_ROOT) / ".env"
+    value = _clean_secret(_parse_env_file(path).get("XAI_API_KEY"))
+    if value:
+        os.environ["XAI_API_KEY"] = value
+
+
+def resolve_api_key(
+    environ: Mapping[str, str] | None = None,
+    *,
+    env_path: Path | None = None,
+    secrets_path: Path | None = None,
+) -> str | None:
+    """Return the xAI key, or ``None`` when every source is empty.
+
+    Precedence is the process environment ``XAI_API_KEY``, then ``XAI_API_KEY``
+    in ``.env``, then ``xai_api_key`` in ``.streamlit/secrets.toml``. When the
+    app is running, ``st.secrets["xai_api_key"]`` is the last fallback so a
+    Streamlit secret still works if the file read does not. Passing
+    ``secrets_path`` keeps the lookup on that file and does not touch Streamlit.
+    """
+
+    source = os.environ if environ is None else environ
+    current = _clean_secret(source.get("XAI_API_KEY"))
+    if current:
+        return current
+
+    path = Path(env_path) if env_path is not None else _REPO_ROOT / ".env"
+    from_file = _clean_secret(_parse_env_file(path).get("XAI_API_KEY"))
+    if from_file:
+        if environ is None:
+            os.environ["XAI_API_KEY"] = from_file
+        return from_file
+
+    if secrets_path is not None:
+        return _read_secrets_file(Path(secrets_path))
+
+    from_secrets = _read_secrets_file(_REPO_ROOT / ".streamlit" / "secrets.toml")
+    if from_secrets:
+        return from_secrets
+    return _streamlit_secret()
+
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return {}
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = _ENV_ASSIGNMENT.match(line)
+        if not match:
+            continue
+        values[match.group(1)] = _strip_env_value(match.group(2).strip())
+    return values
+
+
+def _strip_env_value(raw: str) -> str:
+    if not raw:
+        return ""
+    if raw[0] in {'"', "'"}:
+        quote = raw[0]
+        end = raw.find(quote, 1)
+        if end == -1:
+            return raw[1:].strip()
+        return raw[1:end]
+    if " #" in raw:
+        raw = raw.split(" #", 1)[0].rstrip()
+    return raw.strip()
+
+
+def _read_secrets_file(path: Path) -> str | None:
+    """Read ``xai_api_key`` from a TOML file. Does not import Streamlit."""
+
+    if not path.is_file():
+        return None
+    try:
+        import tomllib
+
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except Exception:
+        return None
+    if not isinstance(data, Mapping):
+        return None
+    return _clean_secret(data.get("xai_api_key"))
+
+
+def _streamlit_secret() -> str | None:
     try:
         import streamlit as st
 
         if "xai_api_key" not in st.secrets:
             return None
-        value = str(st.secrets["xai_api_key"]).strip()
+        return _clean_secret(st.secrets["xai_api_key"])
     except Exception:
         return None
-    return value or None
+
+
+def _clean_secret(value: object) -> str | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if not isinstance(value, (str, int, float)):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+load_repo_env()
 
 
 def _object_schema(properties: dict, required: list[str]) -> dict:

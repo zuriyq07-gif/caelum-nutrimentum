@@ -21,10 +21,14 @@ from assistant import (
     AssistantError,
     MissionState,
     default_mission_state,
+    load_repo_env,
     resupply_delay_line,
     resolve_api_key,
     run_turn,
 )
+
+# Pick up repo-root .env before the page decides whether chat is enabled.
+load_repo_env()
 from data_loader import load_all
 from decay import describe_shortfalls, replan_mission
 from mission import mission_food

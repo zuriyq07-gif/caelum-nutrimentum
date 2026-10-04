@@ -31,7 +31,7 @@ The page shows total food mass, the packing list (heaviest first), a chart title
 
 ## Mission assistant
 
-The assistant can change the mission, crew, EVA hours, and resupply delay, and it can report nutrient shortfalls. It uses the xAI API: `grok-4.7` chat completions with tools, and Grok Voice to hear a question and speak the answer. Set `XAI_API_KEY` in the environment, or `xai_api_key` in `.streamlit/secrets.toml` (that file is gitignored). Without a key, the manifest still packs and the panel says the assistant needs a key.
+The assistant can change the mission, crew, EVA hours, and resupply delay, and it can report nutrient shortfalls. It uses the xAI API: `grok-4.7` chat completions with tools, and Grok Voice to hear a question and speak the answer. Put the key in a repo-root `.env` as `XAI_API_KEY` (see `.env.example`) or in `.streamlit/secrets.toml` as `xai_api_key`. A process `XAI_API_KEY` wins, then `.env`, then the secrets file; both files are gitignored. Without a key, the manifest still packs and the panel says the assistant needs a key.
 
 ## Tests
 
