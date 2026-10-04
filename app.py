@@ -241,9 +241,9 @@ def display_unit(unit: object) -> str:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Mission food manifest", layout="wide")
+    st.set_page_config(page_title="Mission Pantry", layout="wide")
     _css()
-    st.title("Mission food manifest")
+    st.title("Mission Pantry")
     st.caption(
         "Food mass for this flight, packed from the ISS standard menu. The planner solves a "
         "minimum-mass day inside the station and a day with a spacewalk, weights those days by "
