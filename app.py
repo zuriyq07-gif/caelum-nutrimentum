@@ -860,13 +860,13 @@ def _decay_chart(frame: pd.DataFrame, unit: str, epoch_days: Sequence[int], last
             titleColor="#c9d3de",
             gridColor="#1c2836",
             domainColor="#1c2836",
-            labelFont="IBM Plex Sans, Source Sans 3, sans-serif",
-            titleFont="IBM Plex Sans, Source Sans 3, sans-serif",
+            labelFont='Courier, "Courier New", monospace',
+            titleFont='Courier, "Courier New", monospace',
         )
         .configure_legend(
             labelColor="#c9d3de",
             titleColor="#c9d3de",
-            labelFont="IBM Plex Sans, Source Sans 3, sans-serif",
+            labelFont='Courier, "Courier New", monospace',
         )
     )
 
@@ -981,8 +981,8 @@ def _nutrient_chart(coverage: Sequence[Mapping]) -> None:
             gridColor="#1c2836",
             domainColor="#1c2836",
             labelLimit=180,
-            labelFont="IBM Plex Sans, Source Sans 3, sans-serif",
-            titleFont="IBM Plex Sans, Source Sans 3, sans-serif",
+            labelFont='Courier, "Courier New", monospace',
+            titleFont='Courier, "Courier New", monospace',
         )
     )
     st.altair_chart(chart, width="stretch", theme=None)
@@ -1234,7 +1234,7 @@ def _css() -> None:
         """
         <style>
           html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-            font-family: "IBM Plex Sans", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+            font-family: Courier, "Courier New", monospace !important;
           }
           .stApp {
             background-color: #070b12;
@@ -1251,11 +1251,38 @@ def _css() -> None:
               radial-gradient(ellipse 140% 46% at 50% 122%, transparent 70%, rgba(226, 161, 90, 0.16) 70.55%, transparent 71.15%),
               radial-gradient(ellipse 95% 34% at 58% -6%, transparent 67%, rgba(176, 196, 214, 0.12) 67.45%, transparent 68.05%),
               linear-gradient(180deg, #0c1422 0%, #070b12 40%, #05070c 100%);
-            font-family: "IBM Plex Sans", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+            font-family: Courier, "Courier New", monospace !important;
           }
-          .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp label, .stApp li,
-          [data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] {
-            font-family: "IBM Plex Sans", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+          .stApp p, .stApp label, .stApp li, .stApp button, .stApp input,
+          .stApp textarea, .stApp select,
+          [data-testid="stCaptionContainer"],
+          [data-testid="stCaptionContainer"] p,
+          [data-testid="stMarkdownContainer"],
+          [data-testid="stMarkdownContainer"] p,
+          [data-testid="stWidgetLabel"],
+          [data-testid="stWidgetLabel"] p,
+          [data-testid="stChatMessage"],
+          [data-testid="stChatMessage"] p,
+          [data-testid="stChatInput"] textarea,
+          section[data-testid="stSidebar"],
+          section[data-testid="stSidebar"] p,
+          section[data-testid="stSidebar"] label,
+          section[data-testid="stSidebar"] li,
+          section[data-testid="stSidebar"] input,
+          section[data-testid="stSidebar"] button,
+          [data-testid="stDataFrame"],
+          [data-testid="stDataFrame"] * {
+            font-family: Courier, "Courier New", monospace !important;
+            --gdg-font-family: Courier, "Courier New", monospace !important;
+          }
+          .stApp h1, .stApp h2, .stApp h3,
+          [data-testid="stHeading"] h1,
+          [data-testid="stHeading"] h2,
+          [data-testid="stHeading"] h3,
+          section[data-testid="stSidebar"] h1,
+          section[data-testid="stSidebar"] h2,
+          section[data-testid="stSidebar"] h3 {
+            font-family: "ROSTEX REGUL", "Courier New", Courier, monospace !important;
           }
           .stApp h1, .stApp h2, .stApp h3 { color: #d5dee8; letter-spacing: -0.02em; }
           .block-container { padding-top: 1.25rem; padding-bottom: 3rem; max-width: 1240px; }
