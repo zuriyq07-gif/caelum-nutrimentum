@@ -16,10 +16,20 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from assistant import (
+    DEFAULT_CREW,
+    AssistantError,
+    MissionState,
+    default_mission_state,
+    resupply_delay_line,
+    resolve_api_key,
+    run_turn,
+)
 from data_loader import load_all
 from decay import describe_shortfalls, replan_mission
 from mission import mission_food
 from optimizer import FOOD_COLUMNS
+from voice import synthesize_speech, transcribe_audio
 
 # A standard EVA day in mission_food. Seven of those days is 45.5 hours.
 STANDARD_EVA_HOURS = 6.5
@@ -54,16 +64,6 @@ NUTRIENT_LABELS = {
     "vitamin_b12": "Vitamin B12",
     "folate": "Folate",
 }
-
-# First row is the first-load crew. Later rows fill extra seats the user adds.
-DEFAULT_CREW = (
-    {"age": 45, "sex": "Male", "weight_kg": 82.9, "height_cm": 180},
-    {"age": 38, "sex": "Female", "weight_kg": 62.0, "height_cm": 168},
-    {"age": 41, "sex": "Male", "weight_kg": 77.0, "height_cm": 178},
-    {"age": 34, "sex": "Female", "weight_kg": 58.0, "height_cm": 165},
-    {"age": 50, "sex": "Male", "weight_kg": 85.0, "height_cm": 182},
-    {"age": 29, "sex": "Female", "weight_kg": 60.0, "height_cm": 170},
-)
 
 _NUTRIENT_ORDER = {name: index for index, name in enumerate(FOOD_COLUMNS)}
 REPLAN_EVERY_DAYS = 30
@@ -259,49 +259,48 @@ def main() -> None:
         st.info("The food table loaded, but it has no rows. There is nothing to pack.")
         st.stop()
 
-    entered = _sidebar()
+    state = _sidebar(_mission_state())
+    st.session_state["mission_state"] = state
+    schedule = eva_schedule(state.eva_hours_per_week)
     errors = validate_mission_inputs(
-        entered["days"],
-        entered["safety_margin"],
-        entered["eva_hours_per_week"],
-        entered["crew"],
+        state.mission_days,
+        state.safety_margin,
+        state.eva_hours_per_week,
+        [_crew_dict(member) for member in state.crew],
     )
-    if errors:
-        st.error("Fix these inputs before packing a menu. Nothing was solved.")
-        for message in errors:
-            st.markdown(f"- {message}")
-        st.stop()
+    result = None
+    plan_error = None
+    if not errors:
+        try:
+            result = plan_for_state(state)
+        except Exception as exc:
+            plan_error = (
+                "The planner stopped before it could build a packing list. "
+                f"{type(exc).__name__}: {exc}"
+            )
 
-    schedule = entered["schedule"]
-    if schedule["note"]:
-        st.info(schedule["note"])
-
-    crew_key = tuple(
-        (
-            int(member["age"]),
-            str(member["sex"]),
-            float(member["weight_kg"]),
-            float(member["height_m"]),
-            tuple(member["allergies"]),
-        )
-        for member in entered["crew"]
-    )
-    try:
-        result = plan_food_load(
-            float(entered["days"]),
-            crew_key,
-            float(entered["safety_margin"]),
-            float(schedule["eva_day_fraction"]),
-            float(schedule["eva_hours"]),
-        )
-    except Exception as exc:
-        st.error(
-            "The planner stopped before it could build a packing list. "
-            f"{type(exc).__name__}: {exc}"
-        )
-        st.stop()
-
-    _render_plan(result, schedule, entered)
+    st.markdown('<span class="layout-anchor"></span>', unsafe_allow_html=True)
+    manifest, assistant = st.columns([1.15, 0.85], gap="large")
+    with manifest:
+        if schedule["note"] and not errors and plan_error is None:
+            st.info(schedule["note"])
+        if errors:
+            st.error("Fix these inputs before packing a menu. Nothing was solved.")
+            for message in errors:
+                st.markdown(f"- {message}")
+        elif plan_error:
+            st.error(plan_error)
+        elif result is not None:
+            if result.get("feasible"):
+                _render_plan(result, schedule, state)
+            else:
+                _render_infeasible(result, schedule, state)
+    with assistant:
+        _render_assistant(state)
+    if result is not None and not errors and plan_error is None:
+        if result.get("feasible"):
+            _render_chart(result)
+        _render_shelf_life(state)
 
 
 @st.cache_resource
@@ -347,10 +346,13 @@ def plan_shelf_life(
     eva_day_fraction: float,
     eva_hours: float,
     replan_every: int,
+    storage_offset_days: float = 0.0,
 ) -> dict:
     """Replan vitamin decay on the same crew and mission inputs as the manifest.
 
-    ``replan_every`` is part of the cache key. The safety margin is recorded
+    ``replan_every`` and ``storage_offset_days`` are part of the cache key.
+    ``days`` is the mission length. Food eaten on mission day ``t`` uses
+    storage age ``t + storage_offset_days``. The safety margin is recorded
     and is not applied inside the daily solves.
     """
 
@@ -366,6 +368,43 @@ def plan_shelf_life(
         foods=package.foods,
         decay_table=package.decay,
         allergies=tokens,
+        storage_offset_days=storage_offset_days,
+    )
+
+
+def plan_for_state(state: MissionState) -> dict:
+    """Pack the menu through the cached planner.
+
+    The cache key is the packed horizon (mission days plus resupply delay),
+    the crew, the safety margin, and the EVA schedule from :func:`eva_schedule`.
+    """
+
+    schedule = eva_schedule(state.eva_hours_per_week)
+    return plan_food_load(
+        float(state.packed_days),
+        state.crew_cache_key(),
+        float(state.safety_margin),
+        float(schedule["eva_day_fraction"]),
+        float(schedule["eva_hours"]),
+    )
+
+
+def replan_for_state(state: MissionState) -> dict:
+    """Shelf-life projection through the cached replan.
+
+    Decay runs for ``mission_days``. Storage age on mission day ``t`` is
+    ``t + resupply_delay_days``.
+    """
+
+    schedule = eva_schedule(state.eva_hours_per_week)
+    return plan_shelf_life(
+        float(state.mission_days),
+        state.crew_cache_key(),
+        float(state.safety_margin),
+        float(schedule["eva_day_fraction"]),
+        float(schedule["eva_hours"]),
+        REPLAN_EVERY_DAYS,
+        float(state.storage_offset_days),
     )
 
 
@@ -400,7 +439,16 @@ def _members_from_key(
     return members, tokens
 
 
-def _sidebar() -> dict:
+def _mission_state() -> MissionState:
+    state = st.session_state.get("mission_state")
+    if not isinstance(state, MissionState):
+        state = default_mission_state()
+        st.session_state["mission_state"] = state
+    return state
+
+
+def _sidebar(state: MissionState) -> MissionState:
+    _prepare_widgets(state)
     st.sidebar.header("Mission")
     st.sidebar.caption(
         "Changing the crew, allergies, or EVA hours solves the menu again. "
@@ -411,25 +459,32 @@ def _sidebar() -> dict:
         "Mission length (days)",
         min_value=1,
         max_value=1000,
-        value=30,
+        value=int(st.session_state["mf-days"]),
         step=1,
-        help="How many days of food to pack. At least 1.",
+        key="mf-days",
+        help="How many days of food to pack. At least 1. Resupply delay is added on top of this.",
     )
+    delay = int(state.resupply_delay_days)
+    st.sidebar.caption(resupply_delay_line(delay))
+    if delay:
+        st.sidebar.caption(f"Packed horizon {int(days) + delay} days.")
     crew_count = st.sidebar.number_input(
         "Number of crew",
         min_value=1,
         max_value=6,
-        value=1,
+        value=int(st.session_state["mf-crew-count"]),
         step=1,
+        key="mf-crew-count",
     )
     crew = [_crew_member(index) for index in range(int(crew_count))]
     eva_hours_per_week = st.sidebar.number_input(
         "EVA hours per week",
         min_value=0.0,
         max_value=80.0,
-        value=6.5,
+        value=float(st.session_state["mf-eva"]),
         step=0.5,
         format="%.1f",
+        key="mf-eva",
         help=(
             "One number for the mission, not per person. Nominal EVA-day length is 6.5 h. "
             "0 leaves EVA days out. Up to 6.5 h is one EVA day that week. "
@@ -447,32 +502,85 @@ def _sidebar() -> dict:
         "Safety margin (%)",
         min_value=0.0,
         max_value=100.0,
-        value=10.0,
+        value=float(st.session_state["mf-margin"]),
         step=1.0,
         format="%.0f",
+        key="mf-margin",
         help="Extra servings on top of the solved menu. 10% is a fraction of 0.10.",
     )
-    return {
-        "days": int(days),
-        "safety_margin": float(margin_percent) / 100.0,
-        "eva_hours_per_week": float(eva_hours_per_week),
-        "crew": crew,
-        "schedule": schedule,
-    }
+    return MissionState(
+        mission_days=int(days),
+        crew=crew,
+        eva_hours_per_week=float(eva_hours_per_week),
+        safety_margin=float(margin_percent) / 100.0,
+        resupply_delay_days=delay,
+    )
 
 
-def _crew_member(index: int) -> dict:
-    defaults = DEFAULT_CREW[index]
-    sex_key = f"sex-{index}"
-    age_key = f"age-{index}"
-    sex_now = st.session_state.get(sex_key, defaults["sex"])
-    age_now = st.session_state.get(age_key, defaults["age"])
+def _prepare_widgets(state: MissionState) -> None:
+    if st.session_state.pop("mf-sync", False) or "mf-days" not in st.session_state:
+        _write_mission_widgets(state)
+        return
+    count = int(st.session_state.get("mf-crew-count", len(state.crew)))
+    count = min(6, max(1, count))
+    for index in range(count):
+        if _widget_key("age", index) not in st.session_state:
+            member = state.crew[index] if index < len(state.crew) else _template_member(index)
+            _write_member_widgets(index, member)
+
+
+def _write_mission_widgets(state: MissionState) -> None:
+    st.session_state["mf-days"] = int(state.mission_days)
+    st.session_state["mf-crew-count"] = max(1, len(state.crew))
+    st.session_state["mf-eva"] = float(state.eva_hours_per_week)
+    st.session_state["mf-margin"] = float(state.safety_margin) * 100.0
+    for index, member in enumerate(state.crew):
+        _write_member_widgets(index, member)
+    for index in range(len(state.crew), 8):
+        for kind in ("age", "sex", "weight", "height", "allergy"):
+            key = _widget_key(kind, index)
+            if key in st.session_state:
+                del st.session_state[key]
+
+
+def _write_member_widgets(index: int, member) -> None:
+    st.session_state[_widget_key("age", index)] = int(member.age)
+    st.session_state[_widget_key("sex", index)] = "Female" if str(member.sex).lower() == "female" else "Male"
+    st.session_state[_widget_key("weight", index)] = float(member.weight_kg)
+    st.session_state[_widget_key("height", index)] = int(round(float(member.height_cm)))
+    st.session_state[_widget_key("allergy", index)] = ", ".join(member.allergies)
+
+
+def _template_member(index: int):
+    from assistant import CrewMember
+
+    template = DEFAULT_CREW[min(index, len(DEFAULT_CREW) - 1)]
+    return CrewMember(
+        age=int(template["age"]),
+        sex=str(template["sex"]).strip().lower(),
+        weight_kg=float(template["weight_kg"]),
+        height_cm=float(template["height_cm"]),
+        allergies=[],
+    )
+
+
+def _widget_key(kind: str, index: int) -> str:
+    return f"mf-{kind}-{index}"
+
+
+def _crew_member(index: int):
+    from assistant import CrewMember
+
+    sex_key = _widget_key("sex", index)
+    age_key = _widget_key("age", index)
+    sex_now = st.session_state.get(sex_key, "Male")
+    age_now = st.session_state.get(age_key, 30)
     with st.sidebar.expander(f"Crew member {index + 1} · {sex_now}, {age_now} y", expanded=index == 0):
         age = st.number_input(
             "Age (years)",
             min_value=19,
             max_value=100,
-            value=int(defaults["age"]),
+            value=int(st.session_state[age_key]),
             step=1,
             key=age_key,
             help="Targets in this package start at age 19.",
@@ -480,49 +588,54 @@ def _crew_member(index: int) -> dict:
         sex_label = st.selectbox(
             "Sex",
             ["Male", "Female"],
-            index=0 if defaults["sex"] == "Male" else 1,
+            index=0 if st.session_state[sex_key] == "Male" else 1,
             key=sex_key,
         )
         weight_kg = st.number_input(
             "Weight (kg)",
             min_value=0.0,
             max_value=250.0,
-            value=float(defaults["weight_kg"]),
+            value=float(st.session_state[_widget_key("weight", index)]),
             step=0.1,
             format="%.1f",
-            key=f"weight-{index}",
+            key=_widget_key("weight", index),
         )
         height_cm = st.number_input(
             "Height (cm)",
             min_value=0,
             max_value=250,
-            value=int(defaults["height_cm"]),
+            value=int(st.session_state[_widget_key("height", index)]),
             step=1,
-            key=f"height-{index}",
+            key=_widget_key("height", index),
             help="Centimeters. Divided by 100 before the energy equation, which uses meters.",
         )
         allergy_text = st.text_input(
             "Allergies",
-            value="",
+            value=str(st.session_state.get(_widget_key("allergy", index), "")),
             placeholder="almond, shrimp",
-            key=f"allergy-{index}",
+            key=_widget_key("allergy", index),
             help="Comma-separated. A food is dropped when its name contains the word. Entries under 3 letters are ignored.",
         )
+    return CrewMember(
+        age=int(age),
+        sex=str(sex_label).strip().lower(),
+        weight_kg=float(weight_kg),
+        height_cm=float(height_cm),
+        allergies=_parse_allergies(allergy_text),
+    )
+
+
+def _crew_dict(member) -> dict:
     return {
-        "age": int(age),
-        "sex": str(sex_label).strip().lower(),
-        "weight_kg": float(weight_kg),
-        "height_m": float(height_cm) / 100.0,
-        "allergies": _parse_allergies(allergy_text),
+        "age": int(member.age),
+        "sex": str(member.sex),
+        "weight_kg": float(member.weight_kg),
+        "height_m": float(member.height_cm) / 100.0,
+        "allergies": list(member.allergies),
     }
 
 
-def _render_plan(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
-    crew_count = len(entered["crew"])
-    if not result.get("feasible"):
-        _render_infeasible(result, schedule, entered)
-        return
-
+def _render_plan(result: Mapping, schedule: Mapping, state: MissionState) -> None:
     total = result.get("total_mass_kg")
     if total is None or not _is_finite_number(total):
         st.error("The planner reported a feasible menu but no total mass. Nothing is shown as packed.")
@@ -535,7 +648,7 @@ def _render_plan(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
         ),
         unsafe_allow_html=True,
     )
-    _mission_lines(result, schedule, crew_count)
+    _mission_lines(result, schedule, state)
 
     packing = list(result.get("packing_list") or [])
     st.subheader("Packing list")
@@ -548,12 +661,8 @@ def _render_plan(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
         _packing_table(packing)
         _download_packing(packing)
 
-    _render_chart(result)
-    _render_shelf_life(entered, schedule)
 
-
-def _render_infeasible(result: Mapping, schedule: Mapping, entered: Mapping) -> None:
-    crew_count = len(entered["crew"])
+def _render_infeasible(result: Mapping, schedule: Mapping, state: MissionState) -> None:
     st.error(str(result.get("message") or "This crew and menu cannot meet the nutrient targets."))
     unmet_rows = _unmet_by_day(result)
     if unmet_rows:
@@ -565,23 +674,29 @@ def _render_infeasible(result: Mapping, schedule: Mapping, entered: Mapping) -> 
                 st.markdown(f"**{label}:** nutrient targets cannot be met.")
     else:
         st.markdown("No unmet-nutrient list was returned with this infeasible menu.")
-    _mission_lines(result, schedule, crew_count)
+    _mission_lines(result, schedule, state)
     st.info("No food mass was packed. The nutrient chart is omitted because the menu is not feasible.")
     st.subheader("Packing list")
     _packing_table([])
     st.caption("No items. The download has the header row only.")
     _download_packing([])
-    _render_shelf_life(entered, schedule)
 
 
-def _mission_lines(result: Mapping, schedule: Mapping, crew_count: int) -> None:
-    days = _as_float(result.get("days"))
-    day_text = f"{days:g}" if days is not None else "—"
+def _mission_lines(result: Mapping, schedule: Mapping, state: MissionState) -> None:
     margin = _as_float(result.get("safety_margin"))
     margin_text = _format_percent(margin) if margin is not None else "—"
     fraction = _as_float(result.get("eva_day_fraction"))
     fraction_text = f"{fraction:.6g}" if fraction is not None else "—"
-    st.caption(f"{day_text} days · {crew_count} crew · {margin_text} margin · EVA-day fraction {fraction_text}")
+    st.caption(
+        f"{int(state.mission_days)} days · {len(state.crew)} crew · {margin_text} margin · "
+        f"EVA-day fraction {fraction_text}"
+    )
+    st.caption(resupply_delay_line(state.resupply_delay_days))
+    if state.resupply_delay_days:
+        st.caption(
+            f"Packed horizon {state.packed_days} days. "
+            f"Food eaten on mission day t is stored for t + {state.resupply_delay_days} days."
+        )
     summary = schedule.get("summary")
     if summary:
         st.caption(str(summary))
@@ -620,7 +735,7 @@ def _download_packing(packing: Sequence[Mapping]) -> None:
     )
 
 
-def _render_shelf_life(entered: Mapping, schedule: Mapping) -> None:
+def _render_shelf_life(state: MissionState) -> None:
     st.subheader("Shelf life")
     st.caption(
         "Each vitamin on the daily menu, from launch through the last mission day. "
@@ -628,25 +743,8 @@ def _render_shelf_life(entered: Mapping, schedule: Mapping) -> None:
         f"every {REPLAN_EVERY_DAYS} days from the vitamins left on that day. "
         "The thin line is the target minimum. Points mark days the locked menu would fall short."
     )
-    crew_key = tuple(
-        (
-            int(member["age"]),
-            str(member["sex"]),
-            float(member["weight_kg"]),
-            float(member["height_m"]),
-            tuple(member["allergies"]),
-        )
-        for member in entered["crew"]
-    )
     try:
-        decay = plan_shelf_life(
-            float(entered["days"]),
-            crew_key,
-            float(entered["safety_margin"]),
-            float(schedule["eva_day_fraction"]),
-            float(schedule["eva_hours"]),
-            REPLAN_EVERY_DAYS,
-        )
+        decay = replan_for_state(state)
     except Exception as exc:
         st.error(f"Shelf-life replanning stopped. {type(exc).__name__}: {exc}")
         return
@@ -661,6 +759,12 @@ def _render_shelf_life(entered: Mapping, schedule: Mapping) -> None:
     )
     if decay.get("eva_day_fraction", 0) and decay.get("representative_kind") != "eva":
         st.caption("An EVA-day menu is solved at the same epochs. The chart follows the typical day, where vitamin targets are tightest.")
+    offset = float(decay.get("storage_offset_days") or 0.0)
+    if offset > 0:
+        st.caption(
+            f"{resupply_delay_line(int(offset))}. "
+            f"Food eaten on mission day t uses storage age t + {offset:g}."
+        )
 
     st.markdown(describe_shortfalls(decay.get("shortfalls") or []))
     _shelf_charts(decay)
@@ -988,6 +1092,139 @@ def _require_finite(value: float, label: str) -> float:
     return number
 
 
+def _render_assistant(state: MissionState) -> None:
+    st.subheader("Mission assistant")
+    messages = list(st.session_state.get("assistant_messages") or [])
+    api_key = resolve_api_key()
+    if not messages:
+        st.caption(
+            "The assistant can change the mission, crew, EVA hours, and resupply, and can report shortfalls."
+        )
+    if not api_key:
+        st.info(
+            "The assistant needs XAI_API_KEY. Set that environment variable, or set xai_api_key in "
+            "Streamlit secrets. The packing list still works without it."
+        )
+    for message in messages:
+        role = str(message.get("role") or "")
+        if role == "tool" or message.get("tool_calls"):
+            continue
+        if role not in {"user", "assistant"}:
+            continue
+        text = str(message.get("content") or "").strip()
+        if not text:
+            continue
+        with st.chat_message(role):
+            if message.get("error"):
+                st.error(text)
+            else:
+                st.markdown(text)
+    spoken = st.session_state.get("assistant_voice_mp3") or b""
+    voice_error = st.session_state.get("assistant_voice_error")
+    if voice_error:
+        st.error(str(voice_error))
+    if spoken:
+        st.caption("Spoken answer")
+        st.audio(spoken, format="audio/mpeg", autoplay=bool(st.session_state.pop("assistant_voice_autoplay", False)))
+    prompt = st.chat_input(
+        "Ask about the mission",
+        key="mission-assistant-text",
+        disabled=not api_key,
+    )
+    audio = st.audio_input(
+        "Speak a question",
+        key="mission-assistant-voice",
+        disabled=not api_key,
+        sample_rate=16000,
+    )
+    if api_key and prompt:
+        _submit_text(prompt, messages, state, api_key)
+    elif api_key and audio is not None:
+        _submit_voice(audio, messages, state, api_key)
+
+
+def _submit_text(prompt: str, messages: list, state: MissionState, api_key: str) -> None:
+    conversation = list(messages)
+    conversation.append({"role": "user", "content": prompt})
+    try:
+        with st.spinner("Asking the mission assistant…"):
+            updated, new_state, summaries = run_turn(
+                conversation,
+                state,
+                api_key,
+                plan=plan_for_state,
+                replan=replan_for_state,
+            )
+    except AssistantError as exc:
+        conversation.append({"role": "assistant", "content": str(exc), "error": True})
+        st.session_state["assistant_messages"] = conversation
+        st.rerun()
+    st.session_state["assistant_messages"] = updated
+    st.session_state["mission_state"] = new_state
+    if any(item.get("mutated") for item in summaries):
+        st.session_state["mf-sync"] = True
+    st.rerun()
+
+
+def _submit_voice(audio, messages: list, state: MissionState, api_key: str) -> None:
+    data = audio.getvalue()
+    token = getattr(audio, "file_id", None) or str(len(data))
+    if st.session_state.get("assistant_voice_id") == token:
+        return
+    conversation = list(messages)
+    try:
+        with st.spinner("Transcribing the question…"):
+            transcript = transcribe_audio(
+                data,
+                api_key,
+                filename=getattr(audio, "name", None) or "question.wav",
+                mime=getattr(audio, "type", None) or "audio/wav",
+            )
+        conversation.append({"role": "user", "content": transcript})
+        with st.spinner("Asking the mission assistant…"):
+            updated, new_state, summaries = run_turn(
+                conversation,
+                state,
+                api_key,
+                plan=plan_for_state,
+                replan=replan_for_state,
+            )
+        reply = _last_assistant_text(updated)
+        spoken = b""
+        voice_error = None
+        if reply:
+            try:
+                with st.spinner("Speaking the answer…"):
+                    spoken = synthesize_speech(reply, api_key)
+            except AssistantError as exc:
+                voice_error = f"The spoken answer could not be generated. {exc}"
+    except AssistantError as exc:
+        conversation.append({"role": "assistant", "content": str(exc), "error": True})
+        st.session_state["assistant_messages"] = conversation
+        st.session_state["assistant_voice_id"] = token
+        st.session_state["assistant_voice_mp3"] = b""
+        st.session_state["assistant_voice_error"] = None
+        st.rerun()
+    st.session_state["assistant_messages"] = updated
+    st.session_state["mission_state"] = new_state
+    st.session_state["assistant_voice_id"] = token
+    st.session_state["assistant_voice_mp3"] = spoken
+    st.session_state["assistant_voice_error"] = voice_error
+    st.session_state["assistant_voice_autoplay"] = bool(spoken)
+    if any(item.get("mutated") for item in summaries):
+        st.session_state["mf-sync"] = True
+    st.rerun()
+
+
+def _last_assistant_text(messages: Sequence[Mapping]) -> str:
+    for message in reversed(list(messages)):
+        if message.get("role") == "assistant" and not message.get("tool_calls") and not message.get("error"):
+            text = str(message.get("content") or "").strip()
+            if text:
+                return text
+    return ""
+
+
 def _css() -> None:
     st.markdown(
         """
@@ -1052,10 +1289,22 @@ def _css() -> None:
           }
           [data-testid="stDataFrame"] { overflow-x: auto; max-width: 100%; }
           [data-testid="stVegaLiteChart"] { max-width: 100%; overflow-x: auto; }
+          [data-testid="stChatMessage"] {
+            background: rgba(16, 24, 32, 0.72);
+            border: 1px solid rgba(226, 161, 90, 0.18);
+          }
           @media (max-width: 480px) {
             .block-container { padding-left: 0.7rem; padding-right: 0.7rem; }
             [data-testid="stMarkdownContainer"] p.mass-hero { font-size: 2.6rem !important; }
             [data-testid="stVegaLiteChart"] { min-width: 0; }
+            [data-testid="stElementContainer"]:has(.layout-anchor) + [data-testid="stElementContainer"] [data-testid="stHorizontalBlock"] {
+              flex-direction: column !important;
+            }
+            [data-testid="stElementContainer"]:has(.layout-anchor) + [data-testid="stElementContainer"] [data-testid="stColumn"] {
+              width: 100% !important;
+              flex: 1 1 100% !important;
+              min-width: 100% !important;
+            }
           }
         </style>
         """,

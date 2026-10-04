@@ -382,6 +382,7 @@ def project_daily(
     targets: Mapping[str, Mapping],
     *,
     kind: str | None = None,
+    storage_offset_days: float = 0.0,
 ) -> dict:
     """Daily vitamin totals for a locked menu and for epoch menus.
 
@@ -398,8 +399,14 @@ def project_daily(
     (totals 0) until the next epoch. Only vitamins that have both a target
     minimum and a column on ``foods`` are projected. Blank concentrations
     count as 0 in the sum, the same way the menu solver treats them.
+
+    ``storage_offset_days`` is added to the mission day before the decay
+    clock runs. Food eaten on mission day ``t`` is ``C(t + storage_offset_days)``.
+    The ``day`` field on each row stays the mission day. The default ``0``
+    keeps the original clock.
     """
 
+    offset = _non_negative(storage_offset_days, "storage_offset_days")
     n_days = _day_count(days)
     plans = [epoch for epoch in epoch_plans if kind is None or str(epoch.get("kind") or "typical") == kind]
     vitamins = [key for key in VITAMIN_COLUMNS if key in targets and VITAMIN_COLUMNS[key] in foods.columns and _minimum(targets[key]) is not None]
@@ -423,7 +430,8 @@ def project_daily(
             c0[row_i, col_i] = 0.0 if number is None else number
             ks[row_i, col_i] = _match(index, name, None if food_type is None else str(food_type), vitamin).k_per_year
 
-    day_index = np.arange(n_days, dtype=float)[:, None, None]
+    ages = np.arange(n_days, dtype=float) + offset
+    day_index = ages[:, None, None]
     decayed = c0[None, :, :] * np.exp(-ks[None, :, :] * day_index / DAYS_PER_YEAR)
     locked = _servings_vector(_serving_map(locked_servings), position, len(foods))
     by_day = _servings_by_day(plans, position, n_days, len(foods))
@@ -496,14 +504,18 @@ def replan_mission(
     allergies: Sequence[str] | str | None = None,
     data_dir: Path | str | None = None,
     solver: Callable | None = None,
+    storage_offset_days: float = 0.0,
 ) -> dict:
     """Re-solve the crew menu at each epoch as vitamins decay.
 
     Epoch starts come from :func:`epoch_starts`. At each start ``t``, foods are
-    replaced with :func:`decayed_foods` at day ``t`` and :func:`optimizer.optimize_menu`
-    is called. The safety margin is not applied inside that solve and does not
-    inflate servings. It is recorded on the result so the packing list can keep
-    applying it once, separately.
+    replaced with :func:`decayed_foods` at day ``t + storage_offset_days`` and
+    :func:`optimizer.optimize_menu` is called. ``storage_offset_days`` defaults
+    to 0, which is the previous clock: mission day ``t`` uses storage age ``t``.
+    A resupply delay passes the delay here so food eaten on mission day ``t``
+    is already ``t + delay`` days old. The safety margin is not applied inside
+    that solve and does not inflate servings. It is recorded on the result so
+    the packing list can keep applying it once, separately.
 
     When ``eva_day_fraction`` is 0, only the typical day is solved (every
     member's EVA hours set to 0). When the fraction is above 0, the typical
@@ -531,6 +543,7 @@ def replan_mission(
 
     mission_days = _positive_number(days, "days")
     margin = _non_negative(safety_margin, "safety_margin")
+    offset = _non_negative(storage_offset_days, "storage_offset_days")
     fraction = _unit_interval(eva_day_fraction)
     starts = epoch_starts(mission_days, replan_every)
     if foods is None or decay_table is None:
@@ -545,7 +558,7 @@ def replan_mission(
 
     epochs: list[dict] = []
     for start in starts:
-        decayed = decayed_foods(foods, start, decay_table)
+        decayed = decayed_foods(foods, start + offset, decay_table)
         for kind in kinds:
             eva = kind == "eva"
             try:
@@ -580,6 +593,7 @@ def replan_mission(
         representative_epochs,
         targets,
         kind=representative,
+        storage_offset_days=offset,
     )
     shortfalls = projected["shortfalls"]
     failed = [epoch for epoch in epochs if not epoch["feasible"]]
@@ -596,16 +610,27 @@ def replan_mission(
         "plan_changes": changes,
         "daily": projected["daily"],
         "shortfalls": shortfalls,
-        "message": _message(starts, shortfalls, margin, failed),
+        "storage_offset_days": offset,
+        "message": _message(starts, shortfalls, margin, failed, offset),
     }
 
 
-def _message(starts: Sequence[int], shortfalls: Sequence[Mapping], safety_margin: float, failed: Sequence[Mapping]) -> str:
+def _message(
+    starts: Sequence[int],
+    shortfalls: Sequence[Mapping],
+    safety_margin: float,
+    failed: Sequence[Mapping],
+    storage_offset_days: float = 0.0,
+) -> str:
     listed = ", ".join(str(day) for day in starts)
     parts = [
         f"Replanned at day {listed}.",
         f"Safety margin {safety_margin:.0%} is not applied to these daily menus.",
     ]
+    if storage_offset_days > 0:
+        parts.append(
+            f"Storage age is the mission day plus {storage_offset_days:g} days."
+        )
     if failed:
         bits = []
         for epoch in failed:

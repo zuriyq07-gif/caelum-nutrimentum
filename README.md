@@ -29,6 +29,10 @@ The page shows total food mass, the packing list (heaviest first), a chart title
 
 `decay.py` replans that menu every 30 days as vitamins decay. Content on mission day `t` is `C0 * exp(-k_per_year * t / 365.25)`, using the yearly rates in `data/shelf_life_decay.csv`. Under the nutrient chart, a Shelf life section plots each vitamin against its minimum: the locked day-0 menu, the replanned menu, and the target. Days the locked menu would miss a minimum are marked, and a table lists serving changes at later epochs. The safety margin stays on the packing list and is not applied again inside those daily solves.
 
+## Mission assistant
+
+The assistant can change the mission, crew, EVA hours, and resupply delay, and it can report nutrient shortfalls. It uses the xAI API: `grok-4.7` chat completions with tools, and Grok Voice to hear a question and speak the answer. Set `XAI_API_KEY` in the environment, or `xai_api_key` in `.streamlit/secrets.toml` (that file is gitignored). Without a key, the manifest still packs and the panel says the assistant needs a key.
+
 ## Tests
 
 ```bash

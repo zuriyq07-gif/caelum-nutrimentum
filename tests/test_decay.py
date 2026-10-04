@@ -377,6 +377,43 @@ def _menu(servings: float, *, feasible: bool = True, unmet: list[str] | None = N
     }
 
 
+def test_storage_offset_ages_food_before_mission_day_zero():
+    k = 0.5
+    foods = _pill_foods()
+    table = pd.DataFrame(
+        [
+            {
+                "record_type": "fallback_default",
+                "category": "any food",
+                "vitamin": "vitamin_c",
+                "item_or_group": "DEFAULT",
+                "k_per_year": k,
+            }
+        ]
+    )
+    seen = []
+
+    def solver(crew, *, foods, allergies=None, data_dir=None):
+        seen.append(float(foods["vit_c_mg_per_serving_est"].iloc[0]))
+        return _menu(1.0)
+
+    result = replan_mission(
+        30,
+        CREW,
+        eva_day_fraction=0,
+        foods=foods,
+        decay_table=table,
+        solver=solver,
+        storage_offset_days=5,
+    )
+    assert seen == [pytest.approx(concentration(100.0, k, 5))]
+    assert result["storage_offset_days"] == 5
+    by_day = {row["day"]: row for row in result["daily"] if row["vitamin"] == "vitamin_c"}
+    assert by_day[0]["day"] == 0
+    assert by_day[0]["no_replan_total"] == pytest.approx(concentration(100.0, k, 5))
+    assert by_day[1]["no_replan_total"] == pytest.approx(concentration(100.0, k, 6))
+
+
 def test_replan_calls_the_solver_once_per_epoch_not_per_day():
     calls = {"n": 0, "hours": []}
 
