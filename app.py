@@ -1,673 +1,693 @@
-"""ISS food ledger: menu, data quality, a one-day menu, and shelf-life decay."""
+"""ISS mission food load: pack the standard menu for a crew.
+
+The page collects mission inputs and calls :func:`mission.mission_food`.
+Nutrient targets and the menu linear program stay in ``targets`` and ``optimizer``.
+"""
 
 from __future__ import annotations
+
+import csv
+import io
+import math
+from typing import Mapping, Sequence
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
 from data_loader import load_all
-from nutrition import (
-    daily_targets,
-    decay_curve,
-    eer_components,
-    fit_decay_items,
-    life_stage_group,
-    plan_day,
-    remaining,
-    serving_against_targets,
-)
+from mission import mission_food
+from optimizer import FOOD_COLUMNS
 
-LEDGER_COLUMNS = [
-    "item",
-    "food_type",
-    "food_type_name",
-    "mass_g",
-    "kcal",
-    "protein_g",
-    "carb_g",
-    "fat_g",
-    "sodium_mg",
-    "calcium_mg",
-    "iron_mg",
-    "vit_c_mg_per_serving_est",
-    "vit_d_ug_per_serving_est",
-    "vit_a_rae_ug_per_serving_est",
-    "match_confidence",
-    "scaling_basis",
-    "quality_flag",
-    "quality_reason",
-]
+# A standard EVA day in mission_food. Seven of those days is 45.5 hours.
+STANDARD_EVA_HOURS = 6.5
+DAYS_PER_WEEK = 7
+MAX_STANDARD_WEEKLY_EVA = DAYS_PER_WEEK * STANDARD_EVA_HOURS
+# One nutrient at thousands of percent would flatten every other bar.
+VISUAL_PERCENT_CAP = 250.0
 
-STATUS_COLORS = {
-    "met": "#7dba8a",
-    "under": "#e07a5f",
-    "over": "#e2a15a",
-    "unknown": "#8aa0b2",
+NUTRIENT_LABELS = {
+    "energy": "Energy",
+    "protein": "Protein",
+    "carbohydrate": "Carbohydrate",
+    "fat": "Fat",
+    "saturated_fat": "Saturated fat",
+    "fiber": "Fiber",
+    "sodium": "Sodium",
+    "potassium": "Potassium",
+    "calcium": "Calcium",
+    "magnesium": "Magnesium",
+    "iron": "Iron",
+    "zinc": "Zinc",
+    "phosphorus": "Phosphorus",
+    "vitamin_a": "Vitamin A",
+    "vitamin_c": "Vitamin C",
+    "vitamin_d": "Vitamin D",
+    "vitamin_e": "Vitamin E",
+    "vitamin_k": "Vitamin K",
+    "thiamin": "Thiamin (B1)",
+    "riboflavin": "Riboflavin (B2)",
+    "niacin": "Niacin (B3)",
+    "vitamin_b6": "Vitamin B6",
+    "vitamin_b12": "Vitamin B12",
+    "folate": "Folate",
 }
 
+DEFAULT_CREW = (
+    {"age": 45, "sex": "Male", "weight_kg": 82.9, "height_m": 1.80},
+    {"age": 32, "sex": "Female", "weight_kg": 65.1, "height_m": 1.70},
+    {"age": 38, "sex": "Male", "weight_kg": 75.0, "height_m": 1.78},
+    {"age": 29, "sex": "Female", "weight_kg": 62.0, "height_m": 1.68},
+)
 
-def main() -> None:
-    st.set_page_config(page_title="ISS food ledger", layout="wide")
-    _css()
-    st.title("ISS food ledger")
-    st.caption(
-        "Standard-menu items from the NASA STEMonstrations nutrition guide, with USDA "
-        "vitamin estimates on the same serving. Placeholders and rows with no packaged "
-        "mass are dropped. Other rows noted in the source stay in the ledger and are flagged."
-    )
-    try:
-        package, fits = _load()
-    except FileNotFoundError as exc:
-        st.error(f"Data file not found: {exc}")
-        st.stop()
-    except Exception as exc:
-        st.error(f"Could not load the food package. {type(exc).__name__}: {exc}")
-        st.stop()
-
-    profile = _profile(package.energy_rules)
-    targets = daily_targets(
-        package.requirements,
-        package.energy_rules,
-        profile["sex"],
-        profile["age"],
-        profile["kg"],
-        profile["eer"].eer_kcal,
-    )
-    _eer_strip(profile)
-
-    ledger, quality, day, shelf = st.tabs(["Ledger", "Data quality", "Crew day", "Shelf life"])
-    with ledger:
-        _ledger(package, targets, profile)
-    with quality:
-        _quality(package)
-    with day:
-        _day(package, profile, targets)
-    with shelf:
-        _shelf(package, fits)
-
-    st.caption(
-        "Sources: NASA STEMonstrations Nutrition Appendix A, USDA FoodData Central "
-        "(SR Legacy and FNDDS), NASEM DRI 2019, NASA-STD-3001 Volume 2 Revision E, "
-        "Cooper, Douglas and Perchonok 2017. Field notes are in data/README.md."
-    )
+_NUTRIENT_ORDER = {name: index for index, name in enumerate(FOOD_COLUMNS)}
 
 
-@st.cache_resource
-def _load():
-    package = load_all()
-    fits = fit_decay_items(package.decay)
-    print(package.summary_text, flush=True)
-    return package, fits
+def eva_schedule(weekly_hours: float) -> dict:
+    """Map mission EVA hours per week to ``mission_food`` arguments.
 
+    Zero hours is a typical-day mission (``eva_day_fraction`` 0 and
+    ``eva_hours`` 0). Up to seven standard 6.5-hour days (45.5 h), the
+    fraction is weekly hours / 45.5 and each EVA day stays 6.5 hours.
+    Above that, every day is an EVA day and ``eva_hours`` is the weekly
+    total divided by 7. ``note`` is set only in that last case.
 
-def _profile(rules: dict) -> dict:
-    activity = rules["eer_equations"]["activity_factor"]
-    low, high = activity["allowed_range"]
-    with st.expander("Crew profile", expanded=True):
-        st.caption(
-            "Reference masses quoted with the energy standard: 82.9 kg for the male crew "
-            "average and 65.1 kg for the female crew average. Activity factor 1.25 is the nominal active value."
-        )
-        left, right = st.columns(2)
-        sex_label = left.radio("Sex", ["Male", "Female"], horizontal=True)
-        age = right.number_input("Age (years)", min_value=19, max_value=90, value=45, step=1)
-        sex = "M" if sex_label == "Male" else "F"
-        mass_default = 82.9 if sex == "M" else 65.1
-        mass_col, height_col = st.columns(2)
-        kg = mass_col.number_input(
-            "Body mass (kg)",
-            min_value=40.0,
-            max_value=150.0,
-            value=mass_default,
-            step=0.1,
-            format="%.1f",
-            key=f"mass-{sex}",
-        )
-        height_m = height_col.number_input(
-            "Height (m)",
-            min_value=1.40,
-            max_value=2.20,
-            value=1.80,
-            step=0.01,
-            format="%.2f",
-            help="The EER equation takes height in meters.",
-        )
-        af_col, eva_col = st.columns(2)
-        af = af_col.slider("Activity factor", min_value=float(low), max_value=float(high), value=float(activity["nominal"]), step=0.05)
-        eva_h = eva_col.slider("EVA hours", min_value=0.0, max_value=8.0, value=0.0, step=0.5)
+    Raises:
+        ValueError: ``weekly_hours`` is negative or not a finite number.
+    """
+
+    hours = _require_finite(weekly_hours, "EVA hours per week")
+    if hours < 0.0:
+        raise ValueError(f"EVA hours per week cannot be negative, got {weekly_hours!r}")
+    if hours == 0.0:
+        return {"eva_day_fraction": 0.0, "eva_hours": 0.0, "note": None}
+    if hours <= MAX_STANDARD_WEEKLY_EVA:
+        return {
+            "eva_day_fraction": hours / MAX_STANDARD_WEEKLY_EVA,
+            "eva_hours": STANDARD_EVA_HOURS,
+            "note": None,
+        }
+    per_day = hours / DAYS_PER_WEEK
     return {
-        "sex": sex,
-        "sex_label": sex_label,
-        "age": int(age),
-        "kg": float(kg),
-        "height_m": float(height_m),
-        "af": float(af),
-        "eva_h": float(eva_h),
-        "eer": eer_components(sex, int(age), float(kg), float(height_m), af=float(af), eva_h=float(eva_h), rules=rules),
-        "group": life_stage_group(sex, int(age)),
+        "eva_day_fraction": 1.0,
+        "eva_hours": per_day,
+        "note": (
+            f"Weekly EVA time is above {MAX_STANDARD_WEEKLY_EVA:g} hours, so every day "
+            f"is treated as an EVA day of {per_day:.2f} hours."
+        ),
     }
 
 
-def _eer_strip(profile: dict) -> None:
-    eer = profile["eer"]
-    left, right = st.columns(2)
-    gap = eer.eer_kcal - eer.provision_kcal
-    left.metric(
-        "Estimated energy requirement",
-        f"{eer.eer_kcal:,.0f} kcal",
-        delta=f"{gap:+,.0f} vs {eer.provision_kcal:,.0f} kcal provision",
-        delta_color="off",
-    )
-    right.metric("DRI life stage", profile["group"])
+def validate_mission_inputs(
+    days: object,
+    safety_margin: object,
+    eva_hours_per_week: object,
+    crew: Sequence[Mapping],
+) -> list[str]:
+    """Return human-readable problems. An empty list means the planner may run.
+
+    Ages under 19 are rejected here because ``targets.daily_targets`` raises
+    ``ValueError`` for those ages. Days must be positive, weight and height
+    must be positive, and the safety margin must be at least zero.
+    """
+
+    errors: list[str] = []
+    day_count = _as_float(days)
+    if day_count is None or day_count <= 0.0:
+        errors.append("Mission length has to be more than zero days.")
+    margin = _as_float(safety_margin)
+    if margin is None or margin < 0.0:
+        errors.append("Safety margin cannot be negative. Use 0 for no extra food, or 0.10 for 10 percent.")
+    weekly = _as_float(eva_hours_per_week)
+    if weekly is None or weekly < 0.0:
+        errors.append("EVA hours per week cannot be negative.")
+    if not crew:
+        errors.append("Add at least one crew member.")
+    for index, member in enumerate(crew, start=1):
+        errors.extend(_validate_member(index, member))
+    return errors
+
+
+def packing_list_csv(packing_list: Sequence[Mapping]) -> str:
+    """CSV text with columns food, servings, mass_kg and a labeled total row."""
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["food", "servings", "mass_kg"])
+    total = 0.0
+    for row in packing_list:
+        servings = float(row["servings"])
+        mass_kg = float(row["mass_kg"])
+        writer.writerow([str(row["item"]), f"{servings:.2f}", f"{mass_kg:.3f}"])
+        total += mass_kg
+    writer.writerow(["Total", "", f"{total:.3f}"])
+    return buffer.getvalue()
+
+
+def mission_average_coverage(result: Mapping) -> list[dict]:
+    """Mission-average delivered nutrients as a percent of the minimum target.
+
+    For each nutrient::
+
+        delivered = (typical_amount * typical_days + eva_amount * eva_days) / days
+        target = (typical_minimum * typical_days + eva_minimum * eva_days) / days
+        percent = delivered / target * 100
+
+    A day with zero length does not have to carry a minimum. A day that does
+    count, and is missing its minimum, drops the nutrient. A weighted minimum
+    of 0 is skipped. ``display_percent`` is capped for the axis; ``percent``
+    stays uncapped and ``clipped`` records the cap.
+    """
+
+    days = float(result["days"])
+    if not math.isfinite(days) or days <= 0.0:
+        return []
+    typical_days = float(result["typical_days"])
+    eva_days = float(result["eva_days"])
+    typical = (result.get("typical_day") or {}).get("nutrients") or {}
+    eva = (result.get("eva_day") or {}).get("nutrients") or {}
+    rows: list[dict] = []
+    for name in list(dict.fromkeys([*typical.keys(), *eva.keys()])):
+        row = _coverage_row(name, typical.get(name) or {}, eva.get(name) or {}, typical_days, eva_days, days)
+        if row is not None:
+            rows.append(row)
+    rows.sort(key=lambda row: (_NUTRIENT_ORDER.get(row["nutrient"], 10_000), row["label"]))
+    return rows
+
+
+def nutrient_label(name: str) -> str:
+    if name in NUTRIENT_LABELS:
+        return NUTRIENT_LABELS[name]
+    return name.replace("_", " ").capitalize()
+
+
+def display_unit(unit: object) -> str:
+    text = "" if unit is None else str(unit)
+    if text == "ug":
+        return "µg"
+    return text
+
+
+def main() -> None:
+    st.set_page_config(page_title="Mission food load", layout="wide")
+    _css()
+    st.title("Mission food load")
     st.caption(
-        f"{eer.formula} → {eer.intercept:g} + ({eer.age_coef:g})×{eer.age:g} "
-        f"+ {eer.activity_factor:g}×({eer.mass_coef:g}×{eer.mass_kg:g} + {eer.height_coef:g}×{eer.height_m:g}) "
-        f"= {eer.base_kcal:,.0f} kcal, plus {eer.eva_hours:g} EVA h × 200 kcal = {eer.eer_kcal:,.0f} kcal."
+        "Pack the ISS standard menu for the crew on this flight. The planner solves a "
+        "minimum-mass day with no spacewalk and a day with EVA, blends those days by "
+        "how often the crew goes outside, and adds the safety margin on every serving."
     )
 
+    try:
+        package = load_food_package()
+    except FileNotFoundError as exc:
+        st.error(f"A food data file is missing, so nothing can be packed. {exc}")
+        st.stop()
+    except Exception as exc:
+        st.error(f"The food tables could not be loaded. {type(exc).__name__}: {exc}")
+        st.stop()
 
-def _ledger(package, targets: pd.DataFrame, profile: dict) -> None:
-    foods = package.foods
-    flagged = int(foods["quality_flag"].sum())
-    dropped_names = ", ".join(package.dropped["item"].tolist())
-    top_left, top_right = st.columns(2)
-    bottom_left, bottom_right = st.columns(2)
-    top_left.metric("Menu rows", f"{len(package.menu)}")
-    top_right.metric("In the ledger", f"{len(foods)}")
-    bottom_left.metric("Dropped", f"{len(package.dropped)}")
-    bottom_right.metric("Flagged", f"{flagged}")
-    st.caption(f"Dropped: {dropped_names}. Flagged rows remain available and are marked in the table.")
+    if package.foods is None or len(package.foods) == 0:
+        st.info("The food table loaded, but it has no rows. There is nothing to pack.")
+        st.stop()
 
-    query = st.text_input("Search items", placeholder="tuna, coffee, tortilla")
-    type_names = sorted(foods["food_type_name"].dropna().unique().tolist())
-    confidence_levels = [level for level in ["high", "medium", "low", "none"] if level in set(foods["match_confidence"])]
-    type_pick = st.pills("Food type", type_names, selection_mode="multi", default=type_names, key="ledger-types")
-    confidence_pick = st.pills(
-        "USDA match",
-        confidence_levels,
-        selection_mode="multi",
-        default=confidence_levels,
-        key="ledger-confidence",
+    entered = _sidebar()
+    errors = validate_mission_inputs(
+        entered["days"],
+        entered["safety_margin"],
+        entered["eva_hours_per_week"],
+        entered["crew"],
     )
-    quality_pick = st.pills(
-        "Quality",
-        ["Clear", "Flagged"],
-        selection_mode="multi",
-        default=["Clear", "Flagged"],
-        key="ledger-quality",
-    )
+    if errors:
+        st.error("Fix these inputs before planning a food load. Nothing was solved.")
+        for message in errors:
+            st.markdown(f"- {message}")
+        st.stop()
 
-    view = foods
-    if query:
-        view = view.loc[view["item"].str.contains(query, case=False, na=False)]
-    type_pick = _as_list(type_pick)
-    confidence_pick = _as_list(confidence_pick)
-    quality_pick = _as_list(quality_pick)
-    if type_pick:
-        view = view.loc[view["food_type_name"].isin(type_pick)]
-    else:
-        view = view.iloc[0:0]
-    if confidence_pick:
-        view = view.loc[view["match_confidence"].isin(confidence_pick)]
-    else:
-        view = view.iloc[0:0]
-    allowed_flags = set()
-    if "Clear" in quality_pick:
-        allowed_flags.add(False)
-    if "Flagged" in quality_pick:
-        allowed_flags.add(True)
-    view = view.loc[view["quality_flag"].isin(allowed_flags)]
-    view = view.reset_index(drop=True)
-    st.caption(f"Showing {len(view)} of {len(foods)} ledger rows.")
+    schedule = eva_schedule(entered["eva_hours_per_week"])
+    if schedule["note"]:
+        st.info(schedule["note"])
 
-    if view.empty:
-        st.info("No menu items match these filters.")
-        return
-
-    show = [column for column in LEDGER_COLUMNS if column in view.columns]
-    st.dataframe(
-        view[show],
-        height=460,
-        hide_index=True,
-        column_config={
-            "kcal": st.column_config.NumberColumn("kcal", format="%.1f"),
-            "mass_g": st.column_config.NumberColumn("mass_g", format="%.1f"),
-            "quality_flag": st.column_config.CheckboxColumn("flagged"),
-            "vit_c_mg_per_serving_est": st.column_config.NumberColumn("vit C mg", format="%.2f"),
-            "vit_d_ug_per_serving_est": st.column_config.NumberColumn("vit D µg", format="%.2f"),
-            "vit_a_rae_ug_per_serving_est": st.column_config.NumberColumn("vit A µg RAE", format="%.1f"),
-        },
-    )
-    with st.expander("All columns"):
-        st.dataframe(view, height=360, hide_index=True)
-        st.download_button(
-            "Download ledger CSV",
-            data=package.foods.to_csv(index=False).encode("utf-8"),
-            file_name="iss_foods_merged.csv",
-            mime="text/csv",
+    crew_key = tuple(
+        (
+            float(member["age"]),
+            str(member["sex"]),
+            float(member["weight_kg"]),
+            float(member["height_m"]),
+            tuple(member["allergies"]),
         )
-
-    choice = st.selectbox("Inspect one serving", view["item"].tolist(), index=None, placeholder="Choose an item")
-    if choice is None:
-        st.caption(f"Choose an item to compare one package with the {profile['group']} targets. Vitamin D uses the 25 µg flight value.")
-        return
-    food = view.set_index("item").loc[choice]
-    _food_detail(food, targets, profile)
-
-
-def _food_detail(food: pd.Series, targets: pd.DataFrame, profile: dict) -> None:
-    st.subheader(str(food.name))
-    st.caption(
-        f"{food['food_type']} · {food['food_type_name']} · USDA {food['match_confidence']} · {food['fdc_description']}"
+        for member in entered["crew"]
     )
-    if bool(food["quality_flag"]):
-        st.warning(f"{food['quality_reason']}. {food['data_quality_notes']}")
-    if str(food["scaling_basis"]).startswith("not scalable"):
-        st.info("This USDA match could not be scaled to a serving, so the vitamin estimates are blank.")
-    elif food["match_notes"]:
-        st.caption(str(food["match_notes"]))
-
-    mass, kcal, protein, sodium = st.columns(4)
-    mass.metric("Packaged mass", _fmt(food["mass_g"], "g"))
-    kcal.metric("Energy", _fmt(food["kcal"], "kcal"))
-    protein.metric("Protein", _fmt(food["protein_g"], "g"))
-    sodium.metric("Sodium", _fmt(food["sodium_mg"], "mg"))
-    if pd.notna(food["atwater_kcal"]) and pd.notna(food["kcal"]):
-        gap = food["atwater_gap_pct"]
-        gap_text = "blank" if pd.isna(gap) else f"{gap:+.0f}%"
-        st.caption(
-            f"Atwater 4P+4C+9F is {food['atwater_kcal']:.0f} kcal. "
-            f"Listed energy differs by {gap_text}. Scaling basis: {food['scaling_basis']}."
-        )
-
-    coverage = serving_against_targets(food, targets)
-    st.markdown(f"**One package against the {profile['group']} day**")
-    st.dataframe(
-        coverage,
-        hide_index=True,
-        column_config={
-            "per_serving": st.column_config.NumberColumn("Per serving", format="%.2f"),
-            "minimum": st.column_config.NumberColumn("Daily minimum", format="%.1f"),
-            "maximum": st.column_config.NumberColumn("Daily maximum", format="%.1f"),
-            "percent_of_reference": st.column_config.NumberColumn("% of reference", format="%.1f"),
-        },
-    )
-
-
-def _quality(package) -> None:
-    st.markdown("**Row counts**")
-    st.dataframe(
-        package.row_counts,
-        hide_index=True,
-        column_config={"detail": st.column_config.TextColumn("detail", width="large")},
-    )
-    with st.expander("Printed summary", expanded=True):
-        st.code(package.summary_text, language="text")
-
-    st.markdown("**Missing values**")
-    tables = package.row_counts["table"].tolist()
-    table = st.selectbox("Table", tables, index=tables.index("foods") if "foods" in tables else 0)
-    part = package.missing_values.loc[package.missing_values["table"].eq(table)].copy()
-    if table == "macro_guidelines":
-        st.caption("Low or high is blank when the guideline bounds only one side. Those cells are left out of the missing-value list.")
-        st.dataframe(package.macro_guidelines, hide_index=True)
-    elif part.empty:
-        st.success(f"{table} has no missing values in the cleaned columns that this report counts.")
-    else:
-        part["missing_pct_label"] = (part["missing_pct"] * 100).round(1)
-        chart = (
-            alt.Chart(part)
-            .mark_bar(color="#e2a15a")
-            .encode(
-                x=alt.X("missing:Q", title="Missing cells"),
-                y=alt.Y("column:N", sort="-x", title=None),
-                tooltip=[
-                    alt.Tooltip("column:N", title="Column"),
-                    alt.Tooltip("missing:Q", title="Missing"),
-                    alt.Tooltip("missing_pct_label:Q", title="Percent of rows", format=".1f"),
-                ],
+    with st.spinner("Planning the food load…"):
+        try:
+            result = plan_food_load(
+                float(entered["days"]),
+                crew_key,
+                float(entered["safety_margin"]),
+                float(schedule["eva_day_fraction"]),
+                float(schedule["eva_hours"]),
             )
-            .properties(height=max(140, 22 * len(part)))
+        except Exception as exc:
+            st.error(
+                "The planner stopped before it could build a packing list. "
+                f"{type(exc).__name__}: {exc}"
+            )
+            st.stop()
+
+    _render_plan(result, schedule)
+
+
+@st.cache_resource
+def load_food_package():
+    """Load the packaged menu once per server process."""
+
+    return load_all()
+
+
+@st.cache_data(show_spinner=False)
+def plan_food_load(
+    days: float,
+    crew: tuple[tuple[float, str, float, float, tuple[str, ...]], ...],
+    safety_margin: float,
+    eva_day_fraction: float,
+    eva_hours: float,
+) -> dict:
+    """Call ``mission_food``. The cache key is the full set of inputs."""
+
+    package = load_food_package()
+    members = [
+        {
+            "age": age,
+            "sex": sex,
+            "weight_kg": weight_kg,
+            "height_m": height_m,
+            "allergies": list(allergies),
+        }
+        for age, sex, weight_kg, height_m, allergies in crew
+    ]
+    return mission_food(
+        days,
+        members,
+        safety_margin=safety_margin,
+        eva_day_fraction=eva_day_fraction,
+        eva_hours=eva_hours,
+        foods=package.foods,
+    )
+
+
+def _sidebar() -> dict:
+    st.sidebar.header("Mission")
+    st.sidebar.caption(
+        "Changing the crew, allergies, or EVA hours solves the menu again. "
+        "The first solve for a new crew usually takes several seconds."
+    )
+    days = st.sidebar.number_input(
+        "Mission length (days)",
+        min_value=0,
+        max_value=1000,
+        value=30,
+        step=1,
+        help="How many days of food to pack. Zero is rejected before the solver runs.",
+    )
+    eva_hours_per_week = st.sidebar.number_input(
+        "EVA hours per week",
+        min_value=0.0,
+        max_value=80.0,
+        value=6.5,
+        step=0.5,
+        format="%.1f",
+        help=(
+            "One number for the mission, not per person. "
+            "Up to 45.5 hours a week, those hours are spread across standard 6.5-hour EVA days. "
+            "Above 45.5, every day is an EVA day."
+        ),
+    )
+    margin_percent = st.sidebar.number_input(
+        "Safety margin (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=10.0,
+        step=1.0,
+        format="%.1f",
+        help="Extra servings on top of the solved menu. 10% is a fraction of 0.10.",
+    )
+    crew_count = st.sidebar.number_input(
+        "Number of crew",
+        min_value=1,
+        max_value=4,
+        value=2,
+        step=1,
+    )
+    crew = [_crew_member(index) for index in range(int(crew_count))]
+    return {
+        "days": int(days),
+        "safety_margin": float(margin_percent) / 100.0,
+        "eva_hours_per_week": float(eva_hours_per_week),
+        "crew": crew,
+    }
+
+
+def _crew_member(index: int) -> dict:
+    defaults = DEFAULT_CREW[index]
+    sex_key = f"sex-{index}"
+    age_key = f"age-{index}"
+    sex_now = st.session_state.get(sex_key, defaults["sex"])
+    age_now = st.session_state.get(age_key, defaults["age"])
+    with st.sidebar.expander(f"Crew member {index + 1} · {sex_now}, {age_now} y", expanded=index < 2):
+        age = st.number_input(
+            "Age (years)",
+            min_value=0,
+            max_value=120,
+            value=int(defaults["age"]),
+            step=1,
+            key=age_key,
+            help="Targets in this package start at age 19.",
         )
-        st.altair_chart(chart)
-        st.dataframe(
-            part.drop(columns=["missing_pct_label"]),
-            hide_index=True,
-            column_config={"missing_pct": st.column_config.NumberColumn("missing fraction", format="%.1%")},
+        sex_label = st.selectbox("Sex", ["Male", "Female"], index=0 if defaults["sex"] == "Male" else 1, key=sex_key)
+        weight_kg = st.number_input(
+            "Weight (kg)",
+            min_value=0.0,
+            max_value=250.0,
+            value=float(defaults["weight_kg"]),
+            step=0.1,
+            format="%.1f",
+            key=f"weight-{index}",
         )
-
-    st.markdown("**Dropped**")
-    st.dataframe(package.dropped[["item", "quality_reason", "data_quality_notes", "mass_g", "kcal", "sodium_mg", "match_confidence"]], hide_index=True)
-    st.markdown("**Flagged**")
-    flagged = package.foods.loc[package.foods["quality_flag"], ["item", "quality_reason", "data_quality_notes", "mass_g", "kcal", "iron_mg", "sat_fat_g"]]
-    st.dataframe(flagged, hide_index=True)
-
-
-def _day(package, profile: dict, targets: pd.DataFrame) -> None:
-    eer = profile["eer"]
-    st.markdown("**Targets for this crewmember**")
-    st.caption(
-        "Micronutrients use the DRI for the life stage, except vitamin D, which NASA-STD-3001 sets at 25 µg/day. "
-        "Carbohydrate and fat bands are the DRI acceptable ranges. Protein uses 0.8 g/kg and a 35% energy ceiling."
-    )
-    st.dataframe(
-        targets.drop(columns=["food_column", "kind"]),
-        hide_index=True,
-        column_config={
-            "target_low": st.column_config.NumberColumn("Minimum", format="%.1f"),
-            "target_high": st.column_config.NumberColumn("Maximum", format="%.1f"),
-            "note": st.column_config.TextColumn("note", width="large"),
-        },
-    )
-    with st.expander("Macro guidelines from the energy rules"):
-        st.dataframe(package.macro_guidelines, hide_index=True)
-        st.dataframe(package.energy_parameters, hide_index=True)
-
-    include_flagged = st.checkbox("Include flagged foods", value=False)
-    bev_col, pkg_col = st.columns(2)
-    max_beverages = bev_col.slider("Maximum beverages", min_value=0, max_value=8, value=4)
-    max_packages = pkg_col.slider("Maximum packages of one item", min_value=1, max_value=3, value=1)
-    st.caption(
-        "The day menu is an integer linear program (SciPy, HiGHS). Each food is 0, 1, or up to the package cap. "
-        "It meets numeric targets and does not assign foods to breakfast, lunch, and dinner. "
-        "Slacks let the menu miss a target when the pantry cannot cover it. Blank USDA vitamin cells count as zero."
-    )
-
-    signature = (
-        profile["sex"],
-        profile["age"],
-        round(profile["kg"], 2),
-        round(profile["height_m"], 2),
-        round(profile["af"], 2),
-        round(profile["eva_h"], 2),
-        include_flagged,
-        int(max_beverages),
-        int(max_packages),
-    )
-    if st.button("Build day menu", type="primary"):
-        with st.spinner("Solving the package menu…"):
-            try:
-                plan = plan_day(
-                    package.foods,
-                    package.requirements,
-                    package.energy_rules,
-                    sex=profile["sex"],
-                    age=profile["age"],
-                    kg=profile["kg"],
-                    height_m=profile["height_m"],
-                    af=profile["af"],
-                    eva_h=profile["eva_h"],
-                    include_flagged=include_flagged,
-                    max_packages=int(max_packages),
-                    max_beverages=int(max_beverages),
-                )
-            except Exception as exc:
-                plan = None
-                st.error(f"The menu solver failed. {type(exc).__name__}: {exc}")
-        if plan is not None:
-            st.session_state["day_plan"] = plan
-            st.session_state["day_sig"] = signature
-
-    plan = st.session_state.get("day_plan")
-    if plan is None:
-        st.info("Build a day menu to see a package combination for these targets.")
-        return
-    if st.session_state.get("day_sig") != signature:
-        st.info("The crew profile or the menu limits changed. Build the day menu again.")
-        return
-    if not plan.success:
-        st.error(plan.message)
-        return
-
-    st.caption(plan.message)
-    totals = plan.totals.set_index("nutrient")
-    energy = float(totals.loc["Energy", "amount"])
-    protein = float(totals.loc["Protein", "amount"])
-    sodium = float(totals.loc["Sodium", "amount"])
-    vitamin_d = float(totals.loc["Vitamin D", "amount"])
-    row1_left, row1_right = st.columns(2)
-    row2_left, row2_right = st.columns(2)
-    row1_left.metric("Packages", f"{plan.packages_chosen}")
-    row1_right.metric(
-        "Energy",
-        f"{energy:,.0f} kcal",
-        delta=f"{energy - eer.eer_kcal:+,.0f} vs EER",
-        delta_color="off",
-    )
-    row2_left.metric(
-        "Protein",
-        f"{protein:.0f} g",
-        delta=f"{protein - float(totals.loc['Protein', 'target_low']):+.0f} g vs 0.8 g/kg",
-        delta_color="off",
-    )
-    row2_right.metric(
-        "Sodium",
-        f"{sodium:,.0f} mg",
-        delta=f"{sodium - 2300:+,.0f} mg vs 2,300 mg cap",
-        delta_color="off",
-    )
-    st.caption(f"Vitamin D from these foods: {vitamin_d:.1f} µg of the 25 µg flight target.")
-    if totals.loc["Vitamin D", "status"] == "under":
-        st.info("USDA matches for this menu do not cover 25 µg of vitamin D. The flight food system also carries vitamin D tablets.")
-    if totals.loc["Sodium", "status"] == "over":
-        st.info("Hitting the energy target with this packaged menu goes past 2,300 mg sodium. Observed ISS intakes were higher still (about 3,823 ± 785 mg).")
-
-    chart_rows = plan.totals.dropna(subset=["target_low"]).copy()
-    chart_rows = chart_rows.loc[chart_rows["target_low"] > 0]
-    chart_rows["percent"] = chart_rows["amount"] / chart_rows["target_low"] * 100
-    bars = (
-        alt.Chart(chart_rows)
-        .mark_bar()
-        .encode(
-            x=alt.X("percent:Q", title="Percent of minimum"),
-            y=alt.Y("nutrient:N", sort=chart_rows["nutrient"].tolist(), title=None),
-            color=alt.Color(
-                "status:N",
-                scale=alt.Scale(
-                    domain=list(STATUS_COLORS),
-                    range=list(STATUS_COLORS.values()),
-                ),
-                legend=alt.Legend(title="Status"),
-            ),
-            tooltip=["nutrient", alt.Tooltip("percent:Q", format=".0f"), "status", alt.Tooltip("amount:Q", format=".1f")],
+        height_m = st.number_input(
+            "Height (m)",
+            min_value=0.0,
+            max_value=2.50,
+            value=float(defaults["height_m"]),
+            step=0.01,
+            format="%.2f",
+            key=f"height-{index}",
         )
-        .properties(height=max(280, 18 * len(chart_rows)))
-    )
-    rule = alt.Chart(pd.DataFrame({"percent": [100]})).mark_rule(color="#d5dde6", strokeDash=[4, 4]).encode(x="percent:Q")
-    st.altair_chart(bars + rule)
+        allergy_text = st.text_input(
+            "Allergies",
+            value="",
+            placeholder="almond, shrimp",
+            key=f"allergy-{index}",
+            help="Comma-separated. A food is dropped when its name contains the word. Entries under 3 letters are ignored.",
+        )
+    return {
+        "age": int(age),
+        "sex": str(sex_label).strip().lower(),
+        "weight_kg": float(weight_kg),
+        "height_m": float(height_m),
+        "allergies": _parse_allergies(allergy_text),
+    }
 
-    st.markdown("**Packages**")
-    st.dataframe(
-        plan.servings,
-        hide_index=True,
-        column_config={
-            "packages": st.column_config.NumberColumn("packages", format="%d"),
-            "kcal": st.column_config.NumberColumn("kcal", format="%.0f"),
-            "protein_g": st.column_config.NumberColumn("protein g", format="%.1f"),
-            "sodium_mg": st.column_config.NumberColumn("sodium mg", format="%.0f"),
-        },
+
+def _render_plan(result: Mapping, schedule: Mapping) -> None:
+    if not result.get("feasible"):
+        st.error(result.get("message") or "This crew and menu cannot meet the nutrient targets.")
+        st.caption("No packing list was built, and the nutrient chart is hidden because the menu is not feasible.")
+        return
+
+    total = result.get("total_mass_kg")
+    if total is None:
+        st.error("The planner reported a feasible menu but no total mass. Nothing is shown as packed.")
+        return
+
+    st.markdown(
+        (
+            "<p class='mass-kicker'>Total mission food mass</p>"
+            f"<p class='mass-hero'>{float(total):,.2f}<span class='mass-unit'>kg</span></p>"
+        ),
+        unsafe_allow_html=True,
     )
-    st.markdown("**Day vs targets**")
-    st.dataframe(
-        plan.totals.drop(columns=["note"]),
-        hide_index=True,
-        column_config={
-            "amount": st.column_config.NumberColumn("Amount", format="%.1f"),
-            "target_low": st.column_config.NumberColumn("Minimum", format="%.1f"),
-            "target_high": st.column_config.NumberColumn("Maximum", format="%.1f"),
-            "share_of_energy_pct": st.column_config.NumberColumn("% of energy", format="%.1f"),
-        },
-    )
+    st.caption(str(result.get("message") or ""))
+    _schedule_caption(result, schedule)
+
+    packing = list(result.get("packing_list") or [])
+    st.subheader("Packing list")
+    if not packing:
+        st.info("The menu solved, but no food had servings left after scaling. There is nothing to download.")
+        return
+
+    st.caption(f"{len(packing)} foods, heaviest first. Servings include the safety margin.")
+    csv_text = packing_list_csv(packing)
     st.download_button(
-        "Download day menu CSV",
-        data=plan.servings.to_csv(index=False).encode("utf-8"),
-        file_name="iss_day_menu.csv",
+        "Download packing list CSV",
+        data=csv_text.encode("utf-8"),
+        file_name="mission_packing_list.csv",
         mime="text/csv",
     )
-
-
-def _shelf(package, fits: pd.DataFrame) -> None:
-    st.markdown("**Shelf life by food type**")
-    st.caption("Bounds are at ambient storage. Intermediate-moisture and fresh-food rows are gaps in the fetched sources. Rates below are for 21 °C; this package has no temperature model.")
-    shelf_rows = package.decay.loc[package.decay["record_type"].eq("shelf_life")].copy()
-    columns = [
-        "food_type_code",
-        "category",
-        "shelf_life_years_max",
-        "shelf_life_bound",
-        "value_status",
-        "notes",
-    ]
-    st.dataframe(shelf_rows[[column for column in columns if column in shelf_rows.columns]], hide_index=True)
-
-    st.markdown("**Fallback decay rate**")
-    st.caption(
-        "Pick the most specific category for a vitamin. The amount at the selected year uses "
-        "C(t) = C0 exp(−kt). The line is that same model integrated with SciPy (dC/dt = −kC)."
+    table = pd.DataFrame(
+        {
+            "Food": [str(row["item"]) for row in packing],
+            "Servings": [float(row["servings"]) for row in packing],
+            "Mass (kg)": [float(row["mass_kg"]) for row in packing],
+        }
     )
-    fallback = package.decay.loc[package.decay["record_type"].eq("fallback_default")].copy()
-    vitamins = fallback["vitamin"].dropna().drop_duplicates().tolist()
-    vitamin = st.selectbox("Vitamin", vitamins)
-    categories = fallback.loc[fallback["vitamin"].eq(vitamin), "category"].dropna().astype(str).drop_duplicates().tolist()
-    category = st.selectbox("Category", categories, key=f"decay-category-{vitamin}")
-    year_col, amount_col = st.columns(2)
-    years = year_col.slider("Years of storage", min_value=0.0, max_value=3.0, value=1.5, step=0.1)
-    c0 = amount_col.number_input("Starting amount", min_value=0.0, value=100.0, step=5.0)
-    estimate = remaining(c0, vitamin, years, category, package.decay)
-
-    if estimate.amount is None:
-        st.warning(estimate.note or "No numeric rate for this vitamin.")
-    else:
-        left, right = st.columns(2)
-        left.metric("Remaining", f"{estimate.amount:.1f}", delta=f"{estimate.fraction_remaining * 100:.1f}% of start", delta_color="off")
-        if estimate.half_life_years is None:
-            right.metric("Half-life", "Not defined")
-            if estimate.k_per_year == 0:
-                st.caption("The fallback rate is zero, so the curve stays flat. For riboflavin and vitamin E that zero is a placeholder where the papers did not publish a number.")
-        else:
-            right.metric("Half-life", f"{estimate.half_life_years:.2f} years")
-        st.caption(
-            f"k = {estimate.k_per_year:.4f} per year · category “{estimate.category}” · {estimate.value_status or 'derived default'}"
-        )
-        if estimate.note:
-            st.caption(estimate.note)
-        times, curve = decay_curve(estimate.c0, estimate.k_per_year, 3.0)
-        curve_frame = pd.DataFrame({"years": times, "amount": curve})
-        point = pd.DataFrame({"years": [estimate.t_years], "amount": [estimate.amount]})
-        line = (
-            alt.Chart(curve_frame)
-            .mark_line(color="#e2a15a")
-            .encode(
-                x=alt.X("years:Q", title="Years at 21 °C"),
-                y=alt.Y("amount:Q", title="Amount"),
-            )
-        )
-        dot = alt.Chart(point).mark_point(filled=True, size=90, color="#f4f7fb").encode(x="years:Q", y="amount:Q")
-        st.altair_chart(line + dot, height=280)
-
-    st.markdown("**Measured items, published k vs SciPy**")
-    st.caption(
-        "Published k uses only the start and the 3-year point. "
-        "The curve fit uses the 0-, 1-, and 3-year points with the starting amount fixed. "
-        "The log-linear fit lets the intercept move."
-    )
-    if fits.empty:
-        st.info("No decay items had three concentrations to fit.")
-        return
-    plot_fits = fits.dropna(subset=["k_published", "k_curve_fit"]).copy()
-    if not plot_fits.empty:
-        upper = float(max(plot_fits["k_published"].max(), plot_fits["k_curve_fit"].max()))
-        lower = float(min(plot_fits["k_published"].min(), plot_fits["k_curve_fit"].min(), 0))
-        guide = pd.DataFrame({"k_published": [lower, upper], "k_curve_fit": [lower, upper]})
-        points = (
-            alt.Chart(plot_fits)
-            .mark_circle(size=70, color="#7eb8c9")
-            .encode(
-                x=alt.X("k_published:Q", title="Published k (per year)"),
-                y=alt.Y("k_curve_fit:Q", title="SciPy curve-fit k (per year)"),
-                tooltip=["item_or_group", "vitamin", alt.Tooltip("k_published:Q", format=".3f"), alt.Tooltip("k_curve_fit:Q", format=".3f"), alt.Tooltip("rmse:Q", format=".2f")],
-            )
-        )
-        identity = (
-            alt.Chart(guide)
-            .mark_line(strokeDash=[4, 4], color="#8aa0b2")
-            .encode(x="k_published:Q", y="k_curve_fit:Q")
-        )
-        st.altair_chart(points + identity, height=320)
     st.dataframe(
-        fits,
+        table,
         hide_index=True,
+        use_container_width=True,
+        height=min(560, 48 + 36 * len(table)),
         column_config={
-            "k_published": st.column_config.NumberColumn("k published", format="%.3f"),
-            "k_curve_fit": st.column_config.NumberColumn("k curve fit", format="%.3f"),
-            "k_loglinear": st.column_config.NumberColumn("k log-linear", format="%.3f"),
-            "rmse": st.column_config.NumberColumn("RMSE", format="%.2f"),
+            "Food": st.column_config.TextColumn("Food", width="large"),
+            "Servings": st.column_config.NumberColumn("Servings", format="%.2f"),
+            "Mass (kg)": st.column_config.NumberColumn("Mass (kg)", format="%.3f"),
         },
     )
 
-    labeled = fits.copy()
-    labeled["label"] = labeled["item_or_group"].astype(str) + " · " + labeled["vitamin"].astype(str)
-    if labeled["label"].duplicated().any():
-        labeled["label"] = labeled["label"] + " · " + labeled.index.astype(str)
-    label = st.selectbox("Compare one measured item", labeled["label"].tolist())
-    chosen = labeled.loc[labeled["label"].eq(label)].iloc[0]
-    measured = pd.DataFrame(
+    st.subheader("Nutrients vs targets")
+    st.caption(
+        "Each bar is one mission-average day: typical days and EVA days weighted by how many of each "
+        "this flight includes. The length of the bar is delivered amount divided by the minimum target. "
+        "The dashed line is 100%. Units sit in the tooltip and the table, because kcal and micrograms "
+        "cannot share one axis."
+    )
+    coverage = mission_average_coverage(result)
+    if not coverage:
+        st.info("No nutrient had a positive minimum target to chart.")
+        return
+    _nutrient_chart(coverage)
+    clipped = [row for row in coverage if row["clipped"]]
+    if clipped:
+        names = ", ".join(f"{row['label']} ({row['percent']:.0f}%)" for row in clipped)
+        st.caption(
+            f"Bars stop at {VISUAL_PERCENT_CAP:.0f}% so one large surplus does not flatten the rest. "
+            f"Still above the cap: {names}."
+        )
+    detail = pd.DataFrame(
         {
-            "years": [0, 1, 3],
-            "amount": [chosen["c_initial"], chosen["c_1yr"], chosen["c_3yr"]],
+            "Nutrient": [row["label"] for row in coverage],
+            "Unit": [row["unit"] for row in coverage],
+            "Delivered": [row["delivered"] for row in coverage],
+            "Minimum target": [row["target_min"] for row in coverage],
+            "Percent of minimum": [row["percent"] for row in coverage],
         }
     )
-    curve_rows = []
-    if pd.notna(chosen["k_published"]):
-        times, curve = decay_curve(chosen["c_initial"], chosen["k_published"], 3)
-        curve_rows.append(pd.DataFrame({"years": times, "amount": curve, "series": "Published k"}))
-    if pd.notna(chosen["k_curve_fit"]):
-        times, curve = decay_curve(chosen["c_initial"], chosen["k_curve_fit"], 3)
-        curve_rows.append(pd.DataFrame({"years": times, "amount": curve, "series": "SciPy curve fit"}))
-    points = alt.Chart(measured).mark_point(filled=True, size=80, color="#f4f7fb").encode(
-        x=alt.X("years:Q", title="Years at 21 °C"),
-        y=alt.Y("amount:Q", title="Amount"),
+    st.dataframe(
+        detail,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            "Delivered": st.column_config.NumberColumn("Delivered", format="%.2f"),
+            "Minimum target": st.column_config.NumberColumn("Minimum target", format="%.2f"),
+            "Percent of minimum": st.column_config.NumberColumn("Percent of minimum", format="%.1f"),
+        },
     )
-    if curve_rows:
-        lines = (
-            alt.Chart(pd.concat(curve_rows, ignore_index=True))
-            .mark_line()
-            .encode(
-                x=alt.X("years:Q", title="Years at 21 °C"),
-                y=alt.Y("amount:Q", title="Amount"),
-                color=alt.Color(
-                    "series:N",
-                    scale=alt.Scale(domain=["Published k", "SciPy curve fit"], range=["#e2a15a", "#7eb8c9"]),
-                    legend=alt.Legend(title=None),
-                ),
-            )
-        )
-        st.altair_chart(lines + points, height=280)
+
+
+def _schedule_caption(result: Mapping, schedule: Mapping) -> None:
+    fraction = float(result["eva_day_fraction"])
+    hours = float(schedule["eva_hours"])
+    if fraction == 0.0:
+        eva_text = "No EVA days."
+    elif fraction == 1.0:
+        eva_text = f"Every day is an EVA day ({hours:.2f} h)."
     else:
-        st.altair_chart(points, height=280)
-        st.caption("This item has measurements but no rate to draw.")
+        eva_text = f"EVA on {fraction * 100:.1f}% of days, {hours:.2f} h on those days."
+    st.caption(
+        f"{result['typical_days']:.2f} typical days and {result['eva_days']:.2f} EVA days. {eva_text}"
+    )
 
 
-def _fmt(value, unit: str) -> str:
-    if pd.isna(value):
-        return "—"
-    return f"{float(value):,.1f} {unit}"
+def _nutrient_chart(coverage: Sequence[Mapping]) -> None:
+    frame = pd.DataFrame(coverage)
+    bars = (
+        alt.Chart(frame)
+        .mark_bar(cornerRadiusEnd=2)
+        .encode(
+            x=alt.X(
+                "display_percent:Q",
+                title="Percent of minimum target",
+                scale=alt.Scale(domain=[0, VISUAL_PERCENT_CAP]),
+            ),
+            y=alt.Y("label:N", sort=[row["label"] for row in coverage], title=None),
+            color=alt.condition(
+                alt.datum.percent >= 100,
+                alt.value("#e2a15a"),
+                alt.value("#e07a5f"),
+            ),
+            tooltip=[
+                alt.Tooltip("label:N", title="Nutrient"),
+                alt.Tooltip("unit:N", title="Unit"),
+                alt.Tooltip("delivered:Q", title="Delivered (mission-average day)", format=".2f"),
+                alt.Tooltip("target_min:Q", title="Minimum target", format=".2f"),
+                alt.Tooltip("percent:Q", title="Percent of minimum", format=".1f"),
+            ],
+        )
+    )
+    rule = alt.Chart(pd.DataFrame({"display_percent": [100.0]})).mark_rule(
+        color="#d5dde6",
+        strokeDash=[4, 4],
+    ).encode(x="display_percent:Q")
+    chart = (
+        (bars + rule)
+        .properties(height=max(320, 24 * len(coverage)))
+        .configure(background="transparent")
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            labelColor="#e7eef5",
+            titleColor="#c5d0dc",
+            gridColor="#243044",
+            domainColor="#243044",
+            labelLimit=180,
+        )
+    )
+    st.altair_chart(chart, use_container_width=True)
 
 
-def _as_list(value) -> list:
-    if value is None:
+def _coverage_row(
+    name: str,
+    typical: Mapping,
+    eva: Mapping,
+    typical_days: float,
+    eva_days: float,
+    days: float,
+) -> dict | None:
+    weighted_min = 0.0
+    weighted_amount = 0.0
+    unit = typical.get("unit") or eva.get("unit") or ""
+    for day_nutrient, day_count in ((typical, typical_days), (eva, eva_days)):
+        if day_count <= 0.0:
+            continue
+        minimum = day_nutrient.get("minimum")
+        if minimum is None or not _is_finite_number(minimum):
+            return None
+        amount = day_nutrient.get("amount")
+        if amount is None or not _is_finite_number(amount):
+            amount = 0.0
+        weighted_min += float(minimum) * day_count
+        weighted_amount += float(amount) * day_count
+        if day_nutrient.get("unit"):
+            unit = day_nutrient["unit"]
+    if weighted_min <= 0.0:
+        return None
+    target = weighted_min / days
+    delivered = weighted_amount / days
+    if target <= 0.0:
+        return None
+    percent = delivered / target * 100.0
+    return {
+        "nutrient": name,
+        "label": nutrient_label(name),
+        "unit": display_unit(unit),
+        "delivered": delivered,
+        "target_min": target,
+        "percent": percent,
+        "display_percent": min(percent, VISUAL_PERCENT_CAP),
+        "clipped": percent > VISUAL_PERCENT_CAP,
+    }
+
+
+def _validate_member(index: int, member: Mapping) -> list[str]:
+    who = f"Crew member {index}"
+    errors: list[str] = []
+    age = _as_float(member.get("age"))
+    if age is None:
+        errors.append(f"{who} needs a numeric age.")
+    elif age < 19:
+        errors.append(f"{who} is under 19. Nutrient targets in this package start at age 19.")
+    sex = str(member.get("sex", "")).strip().lower()
+    if sex not in {"male", "female"}:
+        errors.append(f"{who} needs sex set to male or female.")
+    weight = _as_float(member.get("weight_kg"))
+    if weight is None or weight <= 0.0:
+        errors.append(f"{who} needs a weight above 0 kg.")
+    height = _as_float(member.get("height_m"))
+    if height is None or height <= 0.0:
+        errors.append(f"{who} needs a height above 0 m.")
+    return errors
+
+
+def _parse_allergies(text: object) -> list[str]:
+    if text is None:
         return []
-    if isinstance(value, str):
-        return [value]
-    return list(value)
+    parts = [part.strip() for part in str(text).split(",")]
+    return [part for part in parts if part]
+
+
+def _as_float(value: object) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _is_finite_number(value: object) -> bool:
+    return _as_float(value) is not None
+
+
+def _require_finite(value: float, label: str) -> float:
+    number = _as_float(value)
+    if number is None:
+        raise ValueError(f"{label} must be a finite number, got {value!r}")
+    return number
 
 
 def _css() -> None:
     st.markdown(
         """
         <style>
-          .block-container { padding-top: 1.4rem; max-width: 1180px; }
+          .stApp {
+            background-color: #070b12;
+            background-image:
+              radial-gradient(1px 1px at 7% 14%, rgba(231, 238, 245, 0.75) 50%, transparent 52%),
+              radial-gradient(1px 1px at 22% 68%, rgba(231, 238, 245, 0.45) 50%, transparent 52%),
+              radial-gradient(1.2px 1.2px at 41% 28%, rgba(226, 161, 90, 0.7) 50%, transparent 52%),
+              radial-gradient(1px 1px at 63% 16%, rgba(231, 238, 245, 0.55) 50%, transparent 52%),
+              radial-gradient(1px 1px at 78% 74%, rgba(231, 238, 245, 0.4) 50%, transparent 52%),
+              radial-gradient(1.4px 1.4px at 91% 22%, rgba(231, 238, 245, 0.65) 50%, transparent 52%),
+              radial-gradient(1px 1px at 84% 48%, rgba(226, 161, 90, 0.45) 50%, transparent 52%),
+              linear-gradient(180deg, #10192a 0%, #070b12 42%);
+          }
+          .block-container { padding-top: 1.25rem; padding-bottom: 3rem; max-width: 1180px; }
+          section[data-testid="stSidebar"] {
+            background: rgba(8, 12, 20, 0.94);
+            border-right: 1px solid rgba(226, 161, 90, 0.28);
+          }
+          .mass-kicker {
+            margin: 0.2rem 0 0;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            color: #e2a15a;
+          }
+          .mass-hero {
+            margin: 0.15rem 0 0.4rem;
+            font-size: clamp(2.4rem, 7vw, 4.6rem);
+            font-weight: 650;
+            letter-spacing: -0.03em;
+            line-height: 1.02;
+            color: #f3e6d4;
+            font-variant-numeric: tabular-nums;
+          }
+          .mass-unit {
+            margin-left: 0.35rem;
+            font-size: 0.38em;
+            letter-spacing: 0.04em;
+            color: #e2a15a;
+          }
           [data-testid="stMetric"] {
             background: rgba(226, 161, 90, 0.08);
             border: 1px solid rgba(226, 161, 90, 0.28);
@@ -675,7 +695,11 @@ def _css() -> None:
             padding: 0.55rem 0.75rem;
             border-radius: 0.35rem;
           }
-          [data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
+          [data-testid="stDataFrame"] { overflow-x: auto; }
+          @media (max-width: 480px) {
+            .block-container { padding-left: 0.7rem; padding-right: 0.7rem; }
+            .mass-hero { font-size: 2.3rem; }
+          }
         </style>
         """,
         unsafe_allow_html=True,
